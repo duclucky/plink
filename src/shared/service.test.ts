@@ -221,6 +221,26 @@ describe('the community shelf', () => {
     expect(shelf.mine?.author).toBe('ann');
     expect(shelf.canPublish).toBe(false);
   });
+  it('gives the player their tune back when saving it fails', async () => {
+    const memory = createMemoryStore();
+    let broken = true;
+    const store = {
+      ...memory,
+      zAdd: async (key: string, member: string, score: number) => {
+        if (broken) throw new Error('redis is down');
+        await memory.zAdd(key, member, score);
+      },
+    };
+    await solveDaily(store, ann, 2);
+
+    await expect(publishTune(store, ann, tune, at(2))).rejects.toThrow();
+    expect((await getShelf(store, ann, 2, at(2))).canPublish).toBe(true);
+    broken = false;
+    expect(await publishTune(store, ann, tune, at(2))).toMatchObject({
+      ok: true,
+    });
+  });
+
   it('gives hearts only to solvers and makes the favourite the next Encore', async () => {
     const store = createMemoryStore();
     await solveDaily(store, ann, 2);

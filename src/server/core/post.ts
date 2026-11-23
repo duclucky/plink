@@ -13,13 +13,35 @@ const WEEKDAY_NAMES = [
 ];
 
 const postKey = (day: number) => `day:${day}:post`;
+const lockKey = (day: number) => `day:${day}:posting`;
+const LOCK_SECONDS = 120;
 
-/** Posts today's box once; later calls return the same post. */
-export const ensureDailyPost = async (now: number = Date.now()) => {
+export type DailyPost = { id: string | null; day: number; created: boolean };
+
+/**
+ * Posts today's box once; later calls return the same post. The scheduler, the
+ * install trigger and the moderator menu can all fire together, so only the
+ * first caller posts. The others get `id: null` while that post is on its way.
+ */
+export const ensureDailyPost = async (
+  now: number = Date.now()
+): Promise<DailyPost> => {
   const day = dayNumber(now);
   const existing = await redis.get(postKey(day));
   if (existing) return { id: existing, day, created: false };
 
+  const turn = await redis.incrBy(lockKey(day), 1);
+  await redis.expire(lockKey(day), LOCK_SECONDS);
+  if (turn !== 1) return { id: null, day, created: false };
+  try {
+    return await submitDailyPost(day);
+  } catch (error) {
+    await redis.del(lockKey(day));
+    throw error;
+  }
+};
+
+const submitDailyPost = async (day: number): Promise<DailyPost> => {
   const notes = dailyPuzzle(day).notes.length;
   const weekday = WEEKDAY_NAMES[weekdayOf(day)] ?? 'Today';
   const post = await reddit.submitCustomPost({

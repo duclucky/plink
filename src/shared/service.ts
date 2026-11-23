@@ -462,21 +462,30 @@ export const publishTune = async (
     await store.hDel(keys.tuneBy(today), userId);
     return fail('duplicate');
   }
-  await store.hSet(keys.tune(id), {
-    scale,
-    notes: encodeNotes(rows),
-    author: actor.username ?? 'someone',
-    authorId: userId,
-    day: String(today),
-    seq: String(seq),
-    hearts: '0',
-    solves: '0',
-  });
-  await Promise.all([
-    store.hSet(keys.tuneBy(today), { [userId]: id }),
-    store.zAdd(keys.top(today), id, 0),
-    store.zAdd(keys.fresh(today), id, seq),
-  ]);
+  try {
+    await store.hSet(keys.tune(id), {
+      scale,
+      notes: encodeNotes(rows),
+      author: actor.username ?? 'someone',
+      authorId: userId,
+      day: String(today),
+      seq: String(seq),
+      hearts: '0',
+      solves: '0',
+    });
+    await Promise.all([
+      store.hSet(keys.tuneBy(today), { [userId]: id }),
+      store.zAdd(keys.top(today), id, 0),
+      store.zAdd(keys.fresh(today), id, seq),
+    ]);
+  } catch (error) {
+    // Give the player their one tune back if the write did not finish.
+    await Promise.all([
+      store.hDel(keys.tuneBy(today), userId),
+      store.hDel(keys.tuneSig(today), sig),
+    ]);
+    throw error;
+  }
   const tune = await loadTune(store, id);
   const [card] = tune ? await toCards(store, actor, [tune]) : [];
   return card ? { type: 'tune', ok: true, tune: card } : fail('notes');

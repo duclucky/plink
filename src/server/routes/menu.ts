@@ -8,6 +8,12 @@ export const menu = new Hono();
 menu.post('/post-create', async (c) => {
   try {
     const post = await ensureDailyPost();
+    if (!post.id) {
+      return c.json<UiResponse>(
+        { showToast: "Today's box is being posted. Refresh in a moment." },
+        200
+      );
+    }
     return c.json<UiResponse>(
       {
         navigateTo: `https://reddit.com/r/${context.subredditName}/comments/${post.id}`,
