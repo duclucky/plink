@@ -15,6 +15,7 @@ const WEEKDAY_NAMES = [
 const postKey = (day: number) => `day:${day}:post`;
 const lockKey = (day: number) => `day:${day}:posting`;
 const LOCK_SECONDS = 120;
+const DAY_SECONDS = 24 * 60 * 60;
 
 export type DailyPost = { id: string | null; day: number; created: boolean };
 
@@ -33,15 +34,22 @@ export const ensureDailyPost = async (
   const turn = await redis.incrBy(lockKey(day), 1);
   await redis.expire(lockKey(day), LOCK_SECONDS);
   if (turn !== 1) return { id: null, day, created: false };
+
+  let id: string;
   try {
-    return await submitDailyPost(day);
+    id = await submitDailyPost(day);
   } catch (error) {
     await redis.del(lockKey(day));
     throw error;
   }
+  // The post is up. Hold the lock for the whole day before saving its id, so
+  // a failed save can never lead to a second post.
+  await redis.expire(lockKey(day), DAY_SECONDS);
+  await redis.set(postKey(day), id);
+  return { id, day, created: true };
 };
 
-const submitDailyPost = async (day: number): Promise<DailyPost> => {
+const submitDailyPost = async (day: number) => {
   const notes = dailyPuzzle(day).notes.length;
   const weekday = WEEKDAY_NAMES[weekdayOf(day)] ?? 'Today';
   const post = await reddit.submitCustomPost({
@@ -53,6 +61,5 @@ const submitDailyPost = async (day: number): Promise<DailyPost> => {
       text: `Plink #${day}. A music box lost its ${notes} pins. Listen to the tune, put the pins back in five checks or fewer, then pin a tune of your own for others to fix. Open this post in the Reddit app or on new Reddit to play.`,
     },
   });
-  await redis.set(postKey(day), post.id);
-  return { id: post.id, day, created: true };
+  return post.id;
 };
