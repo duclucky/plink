@@ -24,8 +24,12 @@
     "@devvit/start": "0.15.4",
     "@devvit/web": "0.15.4",
     "@hono/node-server": "2.1.6",
+    "animejs": "^4.5.0",
     "devvit": "0.15.4",
     "hono": "4.13.17",
+    "motion": "^12.43.0",
+    "ola": "^1.2.2",
+    "proton-engine": "^7.1.5",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },

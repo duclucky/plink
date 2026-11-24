@@ -1,3 +1,10 @@
+import {
+  AnimatePresence,
+  LazyMotion,
+  MotionConfig,
+  domAnimation,
+} from 'motion/react';
+import * as m from 'motion/react-m';
 import { useCallback, useEffect, useState } from 'react';
 import type {
   InitResponse,
@@ -223,173 +230,209 @@ export const App = ({ backend, host }: AppProps) => {
         ? `${me.streak}-day streak`
         : null;
 
-  return (
-    <main className="app">
-      <header className="topbar">
-        {back ? (
-          <button
-            type="button"
-            className="icon-btn"
-            aria-label="Back"
-            onClick={back}
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-              <path
-                d="M14.5 5.5L8 12l6.5 6.5"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-              />
-            </svg>
-          </button>
-        ) : (
-          <span className="icon-btn is-ghost" aria-hidden="true" />
-        )}
-        <div className="topbar-title">
-          <h1>{heading}</h1>
-          {sub && <p>{sub}</p>}
-        </div>
-        <MuteButton />
-      </header>
+  const stageKey =
+    view.name === 'tune'
+      ? `tune-${view.card.id}-${view.finished ? 'done' : 'play'}`
+      : view.name === 'daily'
+        ? `daily-${dailyDone && dailyShown ? 'done' : 'play'}`
+        : view.name;
 
-      <div
-        className="stage"
-        key={view.name === 'tune' ? view.card.id : view.name}
-      >
-        {view.name === 'daily' && !(dailyDone && dailyShown) && (
-          <Puzzle
-            scale={daily.scale}
-            notes={daily.notes}
-            initial={init.play}
-            onCheck={checkDaily}
-            onDone={() => setDailyShown(true)}
-          />
-        )}
-        {view.name === 'daily' && dailyDone && dailyShown && init.play && (
-          <Result
-            day={daily.day}
-            today={today}
-            nextIn={init.nextIn}
-            scale={daily.scale}
-            notes={daily.notes}
-            title={daily.title}
-            credit={daily.credit}
-            play={init.play}
-            histogram={init.histogram}
-            me={me}
-            shelfCount={init.shelfCount}
-            canPublish={
-              me.loggedIn && daily.day === today && init.myTuneId === null
-            }
-            onShare={() => {
-              if (init.play)
-                void share(`Plink #${daily.day}`, daily.notes, init.play);
-            }}
-            onShelf={openShelf}
-            onCompose={() => {
-              setPublishError(null);
-              setView({ name: 'compose' });
-            }}
-          />
-        )}
-        {view.name === 'shelf' && (
-          <Shelf
-            shelf={shelf}
-            encore={init.encore}
-            today={today}
-            loggedIn={me.loggedIn}
-            dailyDone={dailyDone}
-            onOpen={(card) =>
-              setView({
-                name: 'tune',
-                card,
-                finished: card.mine || card.play?.done === true,
-              })
-            }
-            onCompose={() => {
-              setPublishError(null);
-              setView({ name: 'compose' });
-            }}
-          />
-        )}
-        {view.name === 'compose' && (
-          <Composer
-            busy={publishing}
-            error={publishError}
-            onPublish={publish}
-          />
-        )}
-        {view.name === 'tune' && !view.finished && (
-          <Puzzle
-            scale={view.card.scale}
-            notes={view.card.notes}
-            initial={view.card.play}
-            onCheck={(guesses) => checkTune(view.card, guesses)}
-            onDone={() =>
-              setView((current) =>
-                current.name === 'tune'
-                  ? { ...current, finished: true }
-                  : current
-              )
-            }
-          />
-        )}
-        {view.name === 'tune' && view.finished && (
-          <div className="result">
-            <header className="result-head">
-              {view.card.mine ? (
-                <>
-                  <p className="eyebrow">Your tune today</p>
-                  <h2 className="result-score">{view.card.solves}</h2>
-                  <p className="result-verdict">
-                    {view.card.solves === 1
-                      ? 'redditor fixed it'
-                      : 'redditors fixed it'}{' '}
-                    · <HeartIcon /> {view.card.hearts}
-                  </p>
-                </>
-              ) : view.card.play ? (
-                <>
-                  <p className="eyebrow">Fixed</p>
-                  <h2 className="result-score">
-                    {view.card.play.guesses.length}
-                    <span className="result-of">/5</span>
-                  </h2>
-                  <p className="result-verdict">{verdict(view.card.play)}</p>
-                </>
-              ) : null}
-            </header>
-            {view.card.play && !view.card.mine && (
-              <GuessGrid notes={view.card.notes} play={view.card.play} />
-            )}
-            <div className="transport">
-              <ReplayButton scale={view.card.scale} notes={view.card.notes} />
-              {!view.card.mine && view.card.play?.solved && (
-                <button
-                  type="button"
-                  className={`btn btn-quiet btn-heart${view.card.hearted ? ' is-hearted' : ''}`}
-                  disabled={view.card.hearted || !me.loggedIn}
-                  onClick={() => heart(view.card)}
+  return (
+    <LazyMotion features={domAnimation} strict>
+      <MotionConfig reducedMotion="user">
+        <main className="app">
+          <header className="topbar">
+            {back ? (
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Back"
+                onClick={back}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  aria-hidden="true"
                 >
-                  <HeartIcon size={16} />
-                  {view.card.hearted
-                    ? `Loved · ${view.card.hearts}`
-                    : 'Leave a heart'}
-                </button>
-              )}
+                  <path
+                    d="M14.5 5.5L8 12l6.5 6.5"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                  />
+                </svg>
+              </button>
+            ) : (
+              <span className="icon-btn is-ghost" aria-hidden="true" />
+            )}
+            <div className="topbar-title">
+              <h1>{heading}</h1>
+              {sub && <p>{sub}</p>}
             </div>
-            <button
-              type="button"
-              className="btn btn-primary btn-wide"
-              onClick={openShelf}
+            <MuteButton />
+          </header>
+
+          <AnimatePresence mode="wait" initial={false}>
+            <m.div
+              className="stage"
+              key={stageKey}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
             >
-              Back to the shelf
-            </button>
-          </div>
-        )}
-      </div>
-    </main>
+              {view.name === 'daily' && !(dailyDone && dailyShown) && (
+                <Puzzle
+                  scale={daily.scale}
+                  notes={daily.notes}
+                  initial={init.play}
+                  onCheck={checkDaily}
+                  onDone={() => setDailyShown(true)}
+                />
+              )}
+              {view.name === 'daily' &&
+                dailyDone &&
+                dailyShown &&
+                init.play && (
+                  <Result
+                    day={daily.day}
+                    today={today}
+                    nextIn={init.nextIn}
+                    scale={daily.scale}
+                    notes={daily.notes}
+                    title={daily.title}
+                    credit={daily.credit}
+                    play={init.play}
+                    histogram={init.histogram}
+                    me={me}
+                    shelfCount={init.shelfCount}
+                    canPublish={
+                      me.loggedIn &&
+                      daily.day === today &&
+                      init.myTuneId === null
+                    }
+                    onShare={() => {
+                      if (init.play)
+                        void share(
+                          `Plink #${daily.day}`,
+                          daily.notes,
+                          init.play
+                        );
+                    }}
+                    onShelf={openShelf}
+                    onCompose={() => {
+                      setPublishError(null);
+                      setView({ name: 'compose' });
+                    }}
+                  />
+                )}
+              {view.name === 'shelf' && (
+                <Shelf
+                  shelf={shelf}
+                  encore={init.encore}
+                  today={today}
+                  loggedIn={me.loggedIn}
+                  dailyDone={dailyDone}
+                  onOpen={(card) =>
+                    setView({
+                      name: 'tune',
+                      card,
+                      finished: card.mine || card.play?.done === true,
+                    })
+                  }
+                  onCompose={() => {
+                    setPublishError(null);
+                    setView({ name: 'compose' });
+                  }}
+                />
+              )}
+              {view.name === 'compose' && (
+                <Composer
+                  busy={publishing}
+                  error={publishError}
+                  onPublish={publish}
+                />
+              )}
+              {view.name === 'tune' && !view.finished && (
+                <Puzzle
+                  scale={view.card.scale}
+                  notes={view.card.notes}
+                  initial={view.card.play}
+                  onCheck={(guesses) => checkTune(view.card, guesses)}
+                  onDone={() =>
+                    setView((current) =>
+                      current.name === 'tune'
+                        ? { ...current, finished: true }
+                        : current
+                    )
+                  }
+                />
+              )}
+              {view.name === 'tune' && view.finished && (
+                <div className="result">
+                  <header className="result-head">
+                    {view.card.mine ? (
+                      <>
+                        <p className="eyebrow">Your tune today</p>
+                        <h2 className="result-score">{view.card.solves}</h2>
+                        <p className="result-verdict">
+                          {view.card.solves === 1
+                            ? 'redditor fixed it'
+                            : 'redditors fixed it'}{' '}
+                          · <HeartIcon /> {view.card.hearts}
+                        </p>
+                      </>
+                    ) : view.card.play ? (
+                      <>
+                        <p className="eyebrow">Fixed</p>
+                        <h2 className="result-score">
+                          {view.card.play.guesses.length}
+                          <span className="result-of">/5</span>
+                        </h2>
+                        <p className="result-verdict">
+                          {verdict(view.card.play)}
+                        </p>
+                      </>
+                    ) : null}
+                  </header>
+                  {view.card.play && !view.card.mine && (
+                    <GuessGrid notes={view.card.notes} play={view.card.play} />
+                  )}
+                  <div className="transport">
+                    <ReplayButton
+                      scale={view.card.scale}
+                      notes={view.card.notes}
+                    />
+                    {!view.card.mine && view.card.play?.solved && (
+                      <button
+                        type="button"
+                        className={`btn btn-quiet btn-heart${view.card.hearted ? ' is-hearted' : ''}`}
+                        disabled={view.card.hearted || !me.loggedIn}
+                        onClick={() => heart(view.card)}
+                      >
+                        <HeartIcon size={16} />
+                        {view.card.hearted
+                          ? `Loved · ${view.card.hearts}`
+                          : 'Leave a heart'}
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-wide"
+                    onClick={openShelf}
+                  >
+                    Back to the shelf
+                  </button>
+                </div>
+              )}
+            </m.div>
+          </AnimatePresence>
+        </main>
+      </MotionConfig>
+    </LazyMotion>
   );
 };

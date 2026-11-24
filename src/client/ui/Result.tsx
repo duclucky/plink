@@ -1,6 +1,10 @@
+import { animate, stagger } from 'animejs';
+import * as m from 'motion/react-m';
+import { useEffect, useRef } from 'react';
 import type { Histogram, Me } from '../../shared/api';
 import { weekdayLabel } from '../../shared/day';
 import { MAX_CHECKS, grade, type Play, type ScaleId } from '../../shared/game';
+import { calm, useEased } from './fx';
 import { usePlayback } from './usePlayback';
 import { verdict } from './verdict';
 import { PlayIcon, StopIcon } from './icons';
@@ -11,17 +15,65 @@ export const GuessGrid = ({
 }: {
   notes: readonly number[];
   play: Play;
-}) => (
-  <div className="guess-grid" aria-label="Your checks">
-    {play.guesses.map((guess, i) => (
-      <div className="guess-row" key={i}>
-        {grade(notes, guess).map((ok, column) => (
-          <span key={column} className={`dot${ok ? ' is-right' : ''}`} />
-        ))}
-      </div>
-    ))}
-  </div>
-);
+}) => {
+  const grid = useRef<HTMLDivElement | null>(null);
+
+  // The dots land one after another, like the comb passing each check.
+  useEffect(() => {
+    const dots = grid.current?.querySelectorAll('.dot');
+    if (!dots || dots.length === 0 || calm()) return;
+    const landing = animate(dots, {
+      scale: [0, 1],
+      opacity: [0, 1],
+      duration: 380,
+      delay: stagger(28, { start: 120 }),
+      ease: 'outBack(2)',
+    });
+    return () => {
+      landing.revert();
+    };
+  }, []);
+
+  return (
+    <div className="guess-grid" aria-label="Your checks" ref={grid}>
+      {play.guesses.map((guess, i) => (
+        <div className="guess-row" key={i}>
+          {grade(notes, guess).map((ok, column) => (
+            <span key={column} className={`dot${ok ? ' is-right' : ''}`} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const Bar = ({
+  label,
+  count,
+  most,
+  mine,
+}: {
+  label: number;
+  count: number;
+  most: number;
+  mine: boolean;
+}) => {
+  const shown = useEased(count);
+  return (
+    <div className={`bar-row${mine ? ' is-mine' : ''}`}>
+      <span className="bar-label">{label}</span>
+      <span className="bar-track">
+        <span
+          className="bar"
+          style={{ width: `${Math.max(3, (shown / most) * 100)}%` }}
+        />
+      </span>
+      <span className="bar-count">
+        {Math.round(shown).toLocaleString('en-US')}
+      </span>
+    </div>
+  );
+};
 
 export const ReplayButton = ({
   scale,
@@ -68,16 +120,13 @@ const HistogramChart = ({
       </h3>
       <div className="histogram">
         {histogram.map((count, i) => (
-          <div key={i} className={`bar-row${mine === i + 1 ? ' is-mine' : ''}`}>
-            <span className="bar-label">{i + 1}</span>
-            <span className="bar-track">
-              <span
-                className="bar"
-                style={{ width: `${Math.max(3, (count / most) * 100)}%` }}
-              />
-            </span>
-            <span className="bar-count">{count.toLocaleString('en-US')}</span>
-          </div>
+          <Bar
+            key={i}
+            label={i + 1}
+            count={count}
+            most={most}
+            mine={mine === i + 1}
+          />
         ))}
       </div>
     </section>
@@ -157,10 +206,15 @@ export const Result = ({
   <div className="result">
     <header className="result-head">
       <p className="eyebrow">Plink #{day} fixed</p>
-      <h2 className="result-score">
+      <m.h2
+        className="result-score"
+        initial={{ scale: 0.4, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 14 }}
+      >
         {play.solved ? play.guesses.length : 'X'}
         <span className="result-of">/{MAX_CHECKS}</span>
-      </h2>
+      </m.h2>
       <p className="result-verdict">{verdict(play)}</p>
       {title && (
         <p className="result-title">

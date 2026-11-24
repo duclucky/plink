@@ -7,6 +7,8 @@ import {
 } from '../../shared/game';
 import { playNote, playThunk } from '../audio';
 import { Board } from './Board';
+import { pinSpot } from './geometry';
+import { Sparkles, type Spark } from './Sparkles';
 import { usePlayback } from './usePlayback';
 import { PlayIcon, StopIcon } from './icons';
 
@@ -46,6 +48,7 @@ export const Puzzle = ({
   const [heard, setHeard] = useState((initial?.guesses.length ?? 0) > 0);
   const [finishing, setFinishing] = useState(false);
   const playback = usePlayback();
+  const [solvedNow, setSolvedNow] = useState(false);
   const doneTimer = useRef<number | null>(null);
 
   useEffect(
@@ -111,6 +114,7 @@ export const Puzzle = ({
     onCheck(next);
     if (!play.done) return;
     setFinishing(true);
+    setSolvedNow(play.solved);
     doneTimer.current = window.setTimeout(
       () => {
         playback.start('target', scale, notes, {
@@ -122,22 +126,41 @@ export const Puzzle = ({
     );
   };
 
+  const head = playback.playhead;
+  // Only ever show a sounding row the player already knows.
+  const sounding =
+    head === null
+      ? null
+      : playback.kind === 'mine'
+        ? (pins[head] ?? null)
+        : finishing && solvedNow
+          ? (notes[head] ?? null)
+          : null;
+  const spark: Spark | null =
+    finishing && solvedNow && head !== null && sounding !== null
+      ? { id: head, ...pinSpot(notes.length, head, sounding) }
+      : null;
+
   return (
     <div className="puzzle">
       <p className="hint" aria-live="polite">
         {hint}
       </p>
-      <Board
-        scale={scale}
-        pins={pins}
-        locked={locked}
-        ruledOut={ruledOut}
-        playhead={playback.playhead}
-        showWrong
-        disabled={finishing}
-        onPin={place}
-        onTine={(row) => playNote(scale, row)}
-      />
+      <div className="board-wrap">
+        <Board
+          scale={scale}
+          pins={pins}
+          locked={locked}
+          ruledOut={ruledOut}
+          playhead={head}
+          sounding={sounding}
+          showWrong
+          disabled={finishing}
+          onPin={place}
+          onTine={(row) => playNote(scale, row)}
+        />
+        <Sparkles spark={spark} />
+      </div>
       <div className="transport">
         <button
           type="button"

@@ -1,8 +1,10 @@
-import { useEffect, useState, type MouseEvent } from 'react';
+import { createTimeline } from 'animejs';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { InitResponse } from '../../shared/api';
 import { weekdayOf } from '../../shared/day';
 import { ROWS } from '../../shared/game';
 import type { Backend } from '../backend';
+import { calm, useEased } from './fx';
 
 const DAY_NAMES = [
   'Monday',
@@ -19,8 +21,54 @@ const Drum = ({ day, columns }: { day: number; columns: number }) => {
   const width = 300;
   const height = 120;
   const colW = (width - 40) / columns;
+  const drum = useRef<SVGSVGElement | null>(null);
+
+  // The comb sweeps the drum and every pin it passes rings.
+  useEffect(() => {
+    const svg = drum.current;
+    const comb = svg?.querySelector('.drum-comb');
+    if (!svg || !comb || calm()) return;
+    const sweep = 2600;
+    const turn = createTimeline({ loop: true, loopDelay: 1100 });
+    turn.add(
+      comb,
+      {
+        translateX: [0, width - 40],
+        opacity: [
+          { to: 1, duration: 200 },
+          { to: 1, duration: sweep - 500 },
+          { to: 0, duration: 300 },
+        ],
+        duration: sweep,
+        ease: 'linear',
+      },
+      0
+    );
+    svg.querySelectorAll<SVGCircleElement>('.drum-pin').forEach((pin) => {
+      const at = Number(pin.dataset.column ?? 0);
+      turn.add(
+        pin,
+        {
+          scale: [
+            { to: 1.55, duration: 110, ease: 'outQuad' },
+            { to: 1, duration: 520, ease: 'outElastic(1, 0.45)' },
+          ],
+        },
+        ((at + 0.5) / columns) * sweep
+      );
+    });
+    return () => {
+      turn.revert();
+    };
+  }, [columns, day]);
+
   return (
-    <svg className="drum" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+    <svg
+      ref={drum}
+      className="drum"
+      viewBox={`0 0 ${width} ${height}`}
+      aria-hidden="true"
+    >
       <rect
         className="drum-body"
         x="6"
@@ -54,13 +102,14 @@ const Drum = ({ day, columns }: { day: number; columns: number }) => {
           <circle
             key={column}
             className="drum-pin"
-            style={{ animationDelay: `${column * 180}ms` }}
+            data-column={column}
             cx={20 + colW * (column + 0.5)}
             cy={26 + row * 17}
             r="6.5"
           />
         );
       })}
+      <line className="drum-comb" x1="20" x2="20" y1="16" y2={height - 16} />
     </svg>
   );
 };
@@ -93,6 +142,7 @@ export const Splash = ({ backend, onOpen }: SplashProps) => {
   const play = init?.play ?? null;
   const fixed = init ? init.histogram.reduce((sum, n) => sum + n, 0) : 0;
   const streak = init?.me.streak ?? 0;
+  const fixedShown = Math.round(useEased(fixed, 900));
 
   const pitch = play?.done
     ? `You fixed it in ${play.guesses.length}. Now fix a redditor’s tune, or pin your own.`
@@ -132,7 +182,7 @@ export const Splash = ({ backend, onOpen }: SplashProps) => {
       </button>
       <p className="splash-stats">
         {fixed > 0
-          ? `${fixed.toLocaleString('en-US')} ${fixed === 1 ? 'redditor has' : 'redditors have'} fixed it`
+          ? `${fixedShown.toLocaleString('en-US')} ${fixed === 1 ? 'redditor has' : 'redditors have'} fixed it`
           : 'Be the first to fix it'}
         {streak > 0 ? ` · your streak: ${streak}` : ''}
       </p>

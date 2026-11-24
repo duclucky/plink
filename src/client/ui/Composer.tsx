@@ -72,6 +72,9 @@ export const Composer = ({ busy, error, onPublish }: ComposerProps) => {
         locked={pins.map(() => false)}
         ruledOut={pins.map(() => noRows)}
         playhead={playback.playhead}
+        sounding={
+          playback.playhead === null ? null : (pins[playback.playhead] ?? null)
+        }
         showWrong={false}
         disabled={busy}
         onTine={(row) => playNote(scale, row)}

@@ -250,10 +250,6 @@ em {
   color: var(--paper-dim);
 }
 
-.stage {
-  animation: rise 0.28s ease both;
-}
-
 .empty {
   display: grid;
   place-items: center;
@@ -327,6 +323,25 @@ em {
   stroke-linecap: round;
 }
 
+.board-wrap {
+  position: relative;
+}
+
+.sparkles {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.pin-ping {
+  fill: none;
+  stroke: var(--brass-hi);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
 .board-playhead {
   fill: rgba(248, 216, 134, 0.13);
   stroke: rgba(248, 216, 134, 0.4);
@@ -392,17 +407,9 @@ em {
   stroke-linejoin: round;
 }
 
-.cell-set .pin {
-  animation: drop 0.16s ease-out both;
-}
-
 .cell-right .pin-body {
   fill: var(--right);
   stroke: var(--right-lo);
-}
-
-.cell-right .pin {
-  animation: pop 0.36s ease-out both;
 }
 
 .cell-wrong .pin-body {
@@ -412,10 +419,6 @@ em {
 
 .cell-wrong .pin-mark {
   stroke: #2b0d06;
-}
-
-.cell-wrong .pin {
-  animation: shake 0.36s ease-in-out both;
 }
 
 .checks {
@@ -558,8 +561,6 @@ em {
   height: 100%;
   border-radius: 4px;
   background: var(--wood-600);
-  transform-origin: left;
-  animation: grow 0.5s ease-out both;
 }
 
 .bar-row.is-mine {
@@ -847,7 +848,13 @@ em {
   stroke-width: 1.5;
   transform-box: fill-box;
   transform-origin: center;
-  animation: glint 2.6s ease-in-out infinite;
+}
+
+.drum-comb {
+  stroke: var(--brass-hi);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0;
 }
 
 .splash-pitch {
@@ -887,60 +894,6 @@ em {
   from {
     opacity: 0;
     translate: 0 8px;
-  }
-}
-
-@keyframes drop {
-  from {
-    transform: scale(1.5);
-    opacity: 0.2;
-  }
-}
-
-@keyframes pop {
-  0% {
-    transform: scale(1);
-  }
-  45% {
-    transform: scale(1.35);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-@keyframes shake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  25% {
-    transform: translateX(-3px);
-  }
-  50% {
-    transform: translateX(3px);
-  }
-  75% {
-    transform: translateX(-2px);
-  }
-}
-
-@keyframes grow {
-  from {
-    transform: scaleX(0);
-  }
-}
-
-@keyframes glint {
-  0%,
-  70%,
-  100% {
-    transform: scale(1);
-    fill: var(--brass);
-  }
-  80% {
-    transform: scale(1.25);
-    fill: var(--brass-hi);
   }
 }
 

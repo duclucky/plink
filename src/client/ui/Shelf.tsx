@@ -1,3 +1,4 @@
+import * as m from 'motion/react-m';
 import type { ShelfResponse, TuneCard } from '../../shared/api';
 import { SCALES } from '../../shared/game';
 import { CheckIcon, HeartIcon } from './icons';
@@ -18,6 +19,11 @@ const Blank = ({ length }: { length: number }) => (
   </span>
 );
 
+const ROW_MOVES = {
+  hidden: { opacity: 0, y: 12 },
+  shown: { opacity: 1, y: 0 },
+};
+
 export const TuneRow = ({
   card,
   badge,
@@ -27,10 +33,12 @@ export const TuneRow = ({
   badge?: string | undefined;
   onOpen: (card: TuneCard) => void;
 }) => (
-  <button
+  <m.button
     type="button"
     className={`tune${card.play?.solved || card.mine ? ' is-done' : ''}`}
     onClick={() => onOpen(card)}
+    variants={ROW_MOVES}
+    whileTap={{ scale: 0.98 }}
   >
     <span className="tune-main">
       <span className="tune-name">
@@ -54,7 +62,7 @@ export const TuneRow = ({
         </span>
       </span>
     </span>
-  </button>
+  </m.button>
 );
 
 export type ShelfProps = {
@@ -93,7 +101,12 @@ export const Shelf = ({
           : null;
 
   return (
-    <div className="shelf">
+    <m.div
+      className="shelf"
+      initial="hidden"
+      animate="shown"
+      transition={{ staggerChildren: 0.045, delayChildren: 0.05 }}
+    >
       <p className="hint">
         Tunes pinned by redditors today. Fix one, and leave a heart if you liked
         it. The best-loved tune plays as tomorrow’s Encore.
@@ -156,6 +169,6 @@ export const Shelf = ({
           <TuneRow key={card.id} card={card} onOpen={onOpen} />
         ))}
       </section>
-    </div>
+    </m.div>
   );
 };
