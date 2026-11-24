@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "plink",
+  "name": "plink-musicbox",
   "marketingAssets": {
     "icon": "assets/icon.png"
   },
@@ -51,5 +51,8 @@
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build"
+  },
+  "dev": {
+    "subreddit": "plink_musicbox_dev"
   }
 }
