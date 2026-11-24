@@ -84,6 +84,17 @@ const playFrom = (notes: readonly number[], text: string | undefined) => {
   return guesses.length > 0 ? evaluate(notes, guesses) : null;
 };
 
+/**
+ * A finished play is kept in its own field, written once. A late check from
+ * another tab can overwrite the running play but never the finished one.
+ */
+const savedPlay = (
+  notes: readonly number[],
+  plays: Record<string, string> | undefined,
+  field: string
+) =>
+  playFrom(notes, plays?.[doneField(field)]) ?? playFrom(notes, plays?.[field]);
+
 const clampDay = (day: number | undefined, today: number) =>
   day !== undefined && Number.isInteger(day) && day >= 1 && day <= today
     ? day
@@ -169,7 +180,7 @@ const toCards = async (
       hearted: userId
         ? (await store.hGet(keys.hearts(tune.id), userId)) !== undefined
         : false,
-      play: playFrom(tune.notes, playsByDay.get(tune.day)?.[tune.id]),
+      play: savedPlay(tune.notes, playsByDay.get(tune.day), tune.id),
     }))
   );
 };
@@ -271,7 +282,7 @@ export const getInit = async (
     today,
     nextIn: Math.max(0, dayStart(today) + DAY_MS - now),
     daily,
-    play: playFrom(daily.notes, plays[DAILY]),
+    play: savedPlay(daily.notes, plays, DAILY),
     histogram,
     encore: encore ?? null,
     me,
@@ -339,7 +350,7 @@ export const submitPlay = async (
 
   const field = isDaily ? DAILY : request.id;
   const playsKey = keys.plays(day, userId);
-  const previous = playFrom(notes, await store.hGet(playsKey, field));
+  const previous = savedPlay(notes, await store.hGetAll(playsKey), field);
   const stale =
     previous !== null &&
     (previous.done ||
@@ -349,11 +360,10 @@ export const submitPlay = async (
   let solves = tune ? tune.solves : null;
 
   if (!stale && incoming.guesses.length > 0) {
-    await store.hSet(playsKey, {
-      [field]: incoming.guesses.map(encodeNotes).join(','),
-    });
+    const saved = incoming.guesses.map(encodeNotes).join(',');
+    await store.hSet(playsKey, { [field]: saved });
     const first =
-      incoming.done && (await store.hSetNX(playsKey, doneField(field), '1'));
+      incoming.done && (await store.hSetNX(playsKey, doneField(field), saved));
     if (first && isDaily) {
       const checks = incoming.solved ? incoming.guesses.length : 0;
       if (incoming.solved) {
@@ -513,7 +523,7 @@ export const heartTune = async (
   const userId = actor.userId;
   if (!userId || tune.authorId === userId) return no;
   const plays = await store.hGetAll(keys.plays(tune.day, userId));
-  if (!playFrom(tune.notes, plays[tune.id])?.solved) return no;
+  if (!savedPlay(tune.notes, plays, tune.id)?.solved) return no;
   if (!(await store.hSetNX(keys.hearts(id), userId, '1'))) {
     return { type: 'heart', ok: true, hearts: tune.hearts };
   }

@@ -166,6 +166,25 @@ describe('playing the daily box', () => {
   });
 });
 
+describe('two tabs on one box', () => {
+  it('keeps a solve when a slower tab saves an older check after it', async () => {
+    const store = createMemoryStore();
+    const notes = dailyPuzzle(2).notes;
+    const wrong = notes.map((n) => (n + 1) % ROWS);
+    await submitPlay(
+      store,
+      ann,
+      { id: 'daily', day: 2, guesses: [wrong, notes] },
+      at(2)
+    );
+    // The other tab read the box before the solve and writes its one check.
+    await store.hSet('plays:2:t2_ann', { daily: wrong.join('') });
+    const init = await getInit(store, ann, 2, at(2));
+    expect(init.play).toMatchObject({ solved: true, done: true });
+    expect(init.play?.guesses).toHaveLength(2);
+  });
+});
+
 describe('the community shelf', () => {
   const tune = { scale: 'dusky' as const, notes: [0, 2, 4, 2, 1, 0, 3] };
   it('needs a login, a solved daily box and one new tune per day', async () => {
