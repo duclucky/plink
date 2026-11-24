@@ -69,6 +69,24 @@ export const App = ({ backend, host }: AppProps) => {
       .catch(() => host.toast('The shelf would not open. Try again.'));
   }, [backend, day, host]);
 
+  const moreShelf = () => {
+    if (day === undefined || !shelf || shelf.nextFresh === null) return;
+    backend
+      .shelf(day, shelf.nextFresh)
+      .then((page) =>
+        setShelf((current) =>
+          current
+            ? {
+                ...current,
+                fresh: [...current.fresh, ...page.fresh],
+                nextFresh: page.nextFresh,
+              }
+            : current
+        )
+      )
+      .catch(() => host.toast('The shelf would not open. Try again.'));
+  };
+
   if (failed) {
     return (
       <main className="app">
@@ -301,6 +319,7 @@ export const App = ({ backend, host }: AppProps) => {
             today={today}
             loggedIn={me.loggedIn}
             dailyDone={dailyDone}
+            onMore={moreShelf}
             onOpen={(card) =>
               setView({
                 name: 'tune',

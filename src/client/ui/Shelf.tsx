@@ -65,6 +65,8 @@ export type ShelfProps = {
   dailyDone: boolean;
   onOpen: (card: TuneCard) => void;
   onCompose: () => void;
+  /** Loads the next page of newly pinned tunes. */
+  onMore: () => void;
 };
 
 export const Shelf = ({
@@ -75,13 +77,17 @@ export const Shelf = ({
   dailyDone,
   onOpen,
   onCompose,
+  onMore,
 }: ShelfProps) => {
   if (!shelf) return <p className="hint">Dusting the shelf…</p>;
   const loved = shelf.top.filter((card) => card.hearts > 0 && !card.mine);
   const leader = loved[0] ?? null;
   const listed = new Set(loved.map((card) => card.id));
   const fresh = shelf.fresh.filter(
-    (card) => !listed.has(card.id) && !card.mine
+    (card, i, all) =>
+      !listed.has(card.id) &&
+      !card.mine &&
+      all.findIndex((other) => other.id === card.id) === i
   );
   const why =
     shelf.day !== today
@@ -141,12 +147,21 @@ export const Shelf = ({
         </section>
       )}
 
-      {fresh.length > 0 && (
+      {(fresh.length > 0 || shelf.nextFresh !== null) && (
         <section>
           <h3 className="section-title">Just pinned</h3>
           {fresh.map((card) => (
             <TuneRow key={card.id} card={card} onOpen={onOpen} />
           ))}
+          {shelf.nextFresh !== null && (
+            <button
+              type="button"
+              className="btn btn-quiet btn-wide"
+              onClick={onMore}
+            >
+              More tunes
+            </button>
+          )}
         </section>
       )}
 

@@ -69,6 +69,8 @@ export type ShelfResponse = {
   day: number;
   top: TuneCard[];
   fresh: TuneCard[];
+  /** Where the next page of `fresh` starts, or null on the last page. */
+  nextFresh: number | null;
   house: TuneCard[];
   mine: TuneCard | null;
   canPublish: boolean;

@@ -274,6 +274,40 @@ describe('the community shelf', () => {
     expect(shelf.top[0]).toMatchObject({ id: made.tune.id, hearts: 1 });
   });
 
+  it('pages through every tune pinned in a day', async () => {
+    const store = createMemoryStore();
+    const names = Array.from({ length: 45 }, (_, i) => `p${i}`);
+    for (const [i, name] of names.entries()) {
+      const who: Actor = { userId: `t2_${name}`, username: name };
+      await solveDaily(store, who, 2);
+      const notes = [i % 5, Math.floor(i / 5) % 5, Math.floor(i / 25), 3, 4, 0];
+      const made = await publishTune(
+        store,
+        who,
+        { scale: 'sunny', notes },
+        at(2)
+      );
+      expect(made.ok).toBe(true);
+    }
+    const seen = new Set<string>();
+    let from: number | null = 0;
+    let pages = 0;
+    while (from !== null) {
+      const page: Awaited<ReturnType<typeof getShelf>> = await getShelf(
+        store,
+        bob,
+        2,
+        at(2),
+        from
+      );
+      page.fresh.forEach((card) => seen.add(card.id));
+      from = page.nextFresh;
+      pages += 1;
+    }
+    expect(pages).toBe(3);
+    expect(seen.size).toBe(45);
+  });
+
   it('gives hearts only to solvers and makes the favourite the next Encore', async () => {
     const store = createMemoryStore();
     await solveDaily(store, ann, 2);

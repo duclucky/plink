@@ -383,14 +383,18 @@ export const getShelf = async (
   store: Store,
   actor: Actor,
   postDay: number | undefined,
-  now: number
+  now: number,
+  /** How many of the newest tunes to skip: the start of a later page. */
+  freshFrom = 0
 ): Promise<ShelfResponse> => {
   const today = dayNumber(now);
   const day = clampDay(postDay, today);
   const userId = actor.userId;
-  const [topIds, freshIds, myId] = await Promise.all([
+  const from = Number.isInteger(freshFrom) && freshFrom > 0 ? freshFrom : 0;
+  const [topIds, freshIds, freshCount, myId] = await Promise.all([
     store.zTop(keys.top(day), SHELF_PAGE),
-    store.zTop(keys.fresh(day), SHELF_PAGE),
+    store.zTop(keys.fresh(day), SHELF_PAGE, from),
+    store.zCard(keys.fresh(day)),
     userId ? store.hGet(keys.tuneBy(day), userId) : undefined,
   ]);
   const house = Array.from({ length: WORKSHOP_COUNT }, (_, i) =>
@@ -417,6 +421,7 @@ export const getShelf = async (
       (a, b) => b.hearts - a.hearts || b.solves - a.solves
     ),
     fresh: cardsFor(freshIds.map((r) => r.member)),
+    nextFresh: from + SHELF_PAGE < freshCount ? from + SHELF_PAGE : null,
     house: cardsFor(house),
     mine: (myId ? byId.get(myId) : undefined) ?? null,
     canPublish:

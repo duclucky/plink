@@ -12,7 +12,8 @@ import type {
 export type Backend = {
   init(): Promise<InitResponse>;
   play(request: PlayRequest): Promise<PlayResponse>;
-  shelf(day: number): Promise<ShelfResponse>;
+  /** `from` skips that many of the newest tunes, for a later page. */
+  shelf(day: number, from?: number): Promise<ShelfResponse>;
   publish(request: PublishRequest): Promise<PublishResponse>;
   heart(id: string): Promise<HeartResponse>;
 };
@@ -36,7 +37,7 @@ const call = async <T>(path: string, body?: unknown): Promise<T> => {
 export const httpBackend: Backend = {
   init: () => call('/api/init'),
   play: (request) => call('/api/play', request),
-  shelf: (day) => call(`/api/shelf?day=${day}`),
+  shelf: (day, from = 0) => call(`/api/shelf?day=${day}&from=${from}`),
   publish: (request) => call('/api/tune', request),
   heart: (id) => call('/api/heart', { id }),
 };

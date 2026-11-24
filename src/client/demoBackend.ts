@@ -143,9 +143,9 @@ export const createDemoBackend = (): Backend => {
       await ready;
       return submitPlay(store, you, request, clock());
     },
-    shelf: async (day) => {
+    shelf: async (day, from) => {
       await ready;
-      return getShelf(store, you, day, clock());
+      return getShelf(store, you, day, clock(), from);
     },
     publish: async (request) => {
       await ready;

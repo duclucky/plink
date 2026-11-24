@@ -26,7 +26,10 @@ export const redisStore: Store = {
     await redis.zRem(key, [member]);
   },
   zIncrBy: (key, member, amount) => redis.zIncrBy(key, member, amount),
-  zTop: (key, count) =>
-    redis.zRange(key, 0, count - 1, { by: 'rank', reverse: true }),
+  zTop: (key, count, offset = 0) =>
+    redis.zRange(key, offset, offset + count - 1, {
+      by: 'rank',
+      reverse: true,
+    }),
   zCard: (key) => redis.zCard(key),
 };

@@ -16,7 +16,7 @@ export type Store = {
   zRem(key: string, member: string): Promise<void>;
   zIncrBy(key: string, member: string, amount: number): Promise<number>;
   /** Highest score first. */
-  zTop(key: string, count: number): Promise<Scored[]>;
+  zTop(key: string, count: number, offset?: number): Promise<Scored[]>;
   zCard(key: string): Promise<number>;
 };
 
@@ -91,11 +91,11 @@ export const createMemoryStore = (
       changed();
       return next;
     },
-    zTop: async (key, count) =>
+    zTop: async (key, count, offset = 0) =>
       Object.entries(data.zsets[key] ?? {})
         .map(([member, score]) => ({ member, score }))
         .sort((a, b) => b.score - a.score || (a.member < b.member ? 1 : -1))
-        .slice(0, count),
+        .slice(offset, offset + count),
     zCard: async (key) => Object.keys(data.zsets[key] ?? {}).length,
   };
 };

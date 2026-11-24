@@ -78,8 +78,9 @@ api.post('/play', async (c) => {
 api.get('/shelf', async (c) => {
   const asked = Number(c.req.query('day'));
   const day = Number.isInteger(asked) ? asked : postDay();
+  const from = Number(c.req.query('from') ?? 0);
   return c.json<ShelfResponse>(
-    await getShelf(redisStore, actor(), day, Date.now())
+    await getShelf(redisStore, actor(), day, Date.now(), from)
   );
 });
 
