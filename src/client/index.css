@@ -327,6 +327,13 @@ em {
   stroke-linecap: round;
 }
 
+.board .cell:focus-visible,
+.board .tine:focus-visible {
+  outline: 2px solid var(--brass-hi);
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+
 .board-playhead {
   fill: rgba(248, 216, 134, 0.13);
   stroke: rgba(248, 216, 134, 0.4);

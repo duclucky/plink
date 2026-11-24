@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from 'react';
 import { ROWS, SCALES, type ScaleId } from '../../shared/game';
 
 const WIDTH = 360;
@@ -5,6 +6,13 @@ const GUTTER = 34;
 const ROW_H = 44;
 const TOP = 10;
 const HEIGHT = TOP * 2 + ROW_H * ROWS;
+
+/** Enter or Space on a focused hole or note name acts like a tap. */
+const isPress = (event: KeyboardEvent) => {
+  if (event.key !== 'Enter' && event.key !== ' ') return false;
+  event.preventDefault();
+  return true;
+};
 
 export type BoardProps = {
   scale: ScaleId;
@@ -73,7 +81,11 @@ export const Board = ({
           className="tine"
           role="button"
           aria-label={`Hear note ${names[row]}`}
+          tabIndex={0}
           onPointerDown={() => onTine(row)}
+          onKeyDown={(event) => {
+            if (isPress(event)) onTine(row);
+          }}
         >
           <line
             className="board-lane"
@@ -123,8 +135,12 @@ export const Board = ({
               role="button"
               aria-label={`Column ${column + 1}, note ${names[row]}${isPin ? ', pinned' : ''}${isLocked && isPin ? ', correct' : ''}${out ? ', wrong' : ''}`}
               aria-disabled={blocked}
+              tabIndex={blocked ? -1 : 0}
               onPointerDown={() => {
                 if (!blocked) onPin(column, row);
+              }}
+              onKeyDown={(event) => {
+                if (!blocked && isPress(event)) onPin(column, row);
               }}
             >
               <rect
