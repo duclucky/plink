@@ -512,7 +512,22 @@ export const heartTune = async (
   if (!(await store.hSetNX(keys.hearts(id), userId, '1'))) {
     return { type: 'heart', ok: true, hearts: tune.hearts };
   }
-  const hearts = await store.hIncrBy(keys.tune(id), 'hearts', 1);
-  if (!tune.house) await store.zIncrBy(keys.top(tune.day), id, 1);
+  // A heart that was not fully counted is handed back, so a retry counts it.
+  const handBack = () => store.hDel(keys.hearts(id), userId);
+  const hearts = await store
+    .hIncrBy(keys.tune(id), 'hearts', 1)
+    .catch(async (error: unknown) => {
+      await handBack();
+      throw error;
+    });
+  if (!tune.house) {
+    await store
+      .zIncrBy(keys.top(tune.day), id, 1)
+      .catch(async (error: unknown) => {
+        await store.hIncrBy(keys.tune(id), 'hearts', -1);
+        await handBack();
+        throw error;
+      });
+  }
   return { type: 'heart', ok: true, hearts };
 };

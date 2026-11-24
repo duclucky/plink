@@ -244,6 +244,36 @@ describe('the community shelf', () => {
     expect(shelf.fresh.filter((card) => !card.house)).toHaveLength(1);
   });
 
+  it('counts a heart on the retry when the first try failed halfway', async () => {
+    const memory = createMemoryStore();
+    let broken = true;
+    const store = {
+      ...memory,
+      zIncrBy: async (key: string, member: string, amount: number) => {
+        if (broken) throw new Error('redis is down');
+        return memory.zIncrBy(key, member, amount);
+      },
+    };
+    await solveDaily(store, ann, 2);
+    await solveDaily(store, bob, 2);
+    const made = await publishTune(store, ann, tune, at(2));
+    if (!made.ok) throw new Error('publish failed');
+    await submitPlay(
+      store,
+      bob,
+      { id: made.tune.id, day: 2, guesses: [tune.notes] },
+      at(2)
+    );
+    await expect(heartTune(store, bob, made.tune.id)).rejects.toThrow();
+    broken = false;
+    expect(await heartTune(store, bob, made.tune.id)).toMatchObject({
+      ok: true,
+      hearts: 1,
+    });
+    const shelf = await getShelf(store, bob, 2, at(2));
+    expect(shelf.top[0]).toMatchObject({ id: made.tune.id, hearts: 1 });
+  });
+
   it('gives hearts only to solvers and makes the favourite the next Encore', async () => {
     const store = createMemoryStore();
     await solveDaily(store, ann, 2);
