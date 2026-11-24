@@ -45,9 +45,18 @@ export const Composer = ({ busy, error, onPublish }: ComposerProps) => {
 
   return (
     <div className="composer">
+      <div className="page-intro">
+        <h2>
+          Your next
+          <br />
+          little earworm.
+        </h2>
+        <span className="mini-sticker" aria-hidden="true">
+          ✳
+        </span>
+      </div>
       <p className="hint">
-        Pin a tune for other redditors to fix. One pin per column; they will
-        only hear it.
+        Pick a mood. Tap one pad per column. Give Reddit something to hum.
       </p>
       <div className="moods" role="radiogroup" aria-label="Mood">
         {SCALE_IDS.map((id) => (
@@ -94,7 +103,7 @@ export const Composer = ({ busy, error, onPublish }: ComposerProps) => {
           >
             −
           </button>
-          <span className="stepper-value">{pins.length} pins</span>
+          <span className="stepper-value">{pins.length} notes</span>
           <button
             type="button"
             className="btn btn-quiet btn-square"
@@ -135,10 +144,10 @@ export const Composer = ({ busy, error, onPublish }: ComposerProps) => {
         disabled={busy || !full || problem !== null}
         onClick={() => onPublish(scale, notes)}
       >
-        {busy ? 'Pinning…' : 'Put it on the shelf'}
+        {busy ? 'Dropping your tune…' : 'Drop it on the B-side ↗'}
       </button>
       <p className="fineprint">
-        One tune a day. Tunes are named by the box, so there is nothing to type.
+        One tune a day. We name it. You make it memorable.
       </p>
     </div>
   );

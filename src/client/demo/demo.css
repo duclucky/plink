@@ -1,66 +1,101 @@
 body {
-  background: #0d0806;
+  background: #e9ebdf;
 }
-
 .demo {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  min-height: 100%;
-  padding: 14px 10px 24px;
+  min-height: 100dvh;
+  padding: 18px 12px 20px;
 }
-
 .demo-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   width: min(100%, 420px);
-  font-size: 12.5px;
-  color: var(--paper-faint);
+  font-size: 10px;
+  color: #6c7062;
 }
-
 .demo-bar strong {
-  color: var(--paper-dim);
+  font-weight: 700;
+  color: var(--ink);
 }
-
+.demo-bar span {
+  max-width: 250px;
+}
 .demo-link {
   padding: 6px 10px;
-  border: 0;
-  border-radius: 8px;
-  background: rgba(245, 233, 208, 0.08);
-  color: var(--paper-dim);
-  font-size: 12.5px;
-  cursor: pointer;
+  border: 1px solid #ccd0bf;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 9px;
   white-space: nowrap;
 }
-
 .demo-frame {
   position: relative;
   width: min(100%, 420px);
-  border-radius: 22px;
-  background: var(--wood-bg);
+  background: var(--cream);
   box-shadow:
-    0 0 0 1px rgba(245, 233, 208, 0.12),
-    0 30px 60px rgba(0, 0, 0, 0.5);
+    0 0 0 1px #d0d4c3,
+    0 14px 40px #25262112;
+  border-radius: 23px;
   overflow: hidden;
 }
-
 .demo-frame.is-post {
-  height: 512px;
+  height: 650px;
 }
-
 .demo-frame.is-game {
-  height: min(860px, calc(100dvh - 130px));
+  height: 685px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #ced2c2 transparent;
 }
-
 .demo-frame .toast {
   position: sticky;
   display: block;
   width: fit-content;
   margin: 0 auto;
   left: auto;
-  transform: none;
+  translate: 0;
+}
+.demo > .fineprint {
+  max-width: 370px;
+  font-size: 9px;
+}
+@media (max-width: 480px) {
+  .demo {
+    padding: 0;
+    gap: 0;
+  }
+  .demo-bar {
+    padding: 8px 13px;
+    height: 44px;
+  }
+  .demo-bar span {
+    max-width: 220px;
+    font-size: 8px;
+  }
+  .demo-frame {
+    width: 100%;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .demo-frame.is-post,
+  .demo-frame.is-game {
+    height: calc(100dvh - 70px);
+    min-height: 560px;
+  }
+  .demo > .fineprint {
+    padding: 7px 10px;
+    font-size: 7px;
+  }
+  .splash {
+    justify-content: start;
+  }
+  .splash .pop-art {
+    max-height: 210px;
+  }
 }

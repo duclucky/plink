@@ -1,4 +1,5 @@
 import type { Histogram, Me } from '../../shared/api';
+import { motion, useReducedMotion } from 'motion/react';
 import { weekdayLabel } from '../../shared/day';
 import { MAX_CHECKS, grade, type Play, type ScaleId } from '../../shared/game';
 import { usePlayback } from './usePlayback';
@@ -42,7 +43,7 @@ export const ReplayButton = ({
       }}
     >
       {playing ? <StopIcon /> : <PlayIcon />}
-      Hear it again
+      Replay tune
     </button>
   );
 };
@@ -59,7 +60,7 @@ const HistogramChart = ({
   return (
     <section className="panel">
       <h3 className="panel-title">
-        How Reddit did
+        The community mix
         <span className="panel-note">
           {total === 1
             ? '1 box fixed'
@@ -87,7 +88,7 @@ const HistogramChart = ({
 const StreakRoll = ({ me, today }: { me: Me; today: number }) => (
   <section className="panel">
     <h3 className="panel-title">
-      Your paper roll
+      Your week in sound
       <span className="panel-note">
         {me.streak > 0
           ? `${me.streak}-day streak · best ${me.best}`
@@ -153,52 +154,96 @@ export const Result = ({
   onShare,
   onShelf,
   onCompose,
-}: ResultProps) => (
-  <div className="result">
-    <header className="result-head">
-      <p className="eyebrow">Plink #{day} fixed</p>
-      <h2 className="result-score">
-        {play.solved ? play.guesses.length : 'X'}
-        <span className="result-of">/{MAX_CHECKS}</span>
-      </h2>
-      <p className="result-verdict">{verdict(play)}</p>
-      {title && (
-        <p className="result-title">
-          You rebuilt <em>{title}</em>
-          {credit ? ` (${credit})` : ''}.
-        </p>
-      )}
-    </header>
-    <GuessGrid notes={notes} play={play} />
-    <div className="transport">
-      <ReplayButton scale={scale} notes={notes} />
-      <button type="button" className="btn btn-quiet" onClick={onShare}>
-        Copy result
-      </button>
-    </div>
-    {canPublish ? (
-      <button
-        type="button"
-        className="btn btn-primary btn-wide"
-        onClick={onCompose}
+}: ResultProps) => {
+  const still = useReducedMotion();
+  return (
+    <div className="result">
+      <motion.section
+        className="result-card"
+        initial={still ? false : { scale: 0.92, rotate: -2 }}
+        animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 22 }}
       >
-        Pin a tune of your own
-      </button>
-    ) : null}
-    <button
-      type="button"
-      className={`btn btn-wide ${canPublish ? 'btn-quiet' : 'btn-primary'}`}
-      onClick={onShelf}
-    >
-      Fix other people’s tunes ({shelfCount})
-    </button>
-    <HistogramChart
-      histogram={histogram}
-      mine={play.solved ? play.guesses.length : null}
-    />
-    {me.loggedIn && <StreakRoll me={me} today={today} />}
-    {day === today && (
-      <p className="fineprint">Next box opens in {untilNext(nextIn)}.</p>
-    )}
-  </div>
-);
+        <header className="result-head">
+          <p className="eyebrow">
+            DAILY MIX #{String(day).padStart(3, '0')} ·{' '}
+            {play.solved ? 'NAILED IT' : 'THAT’S A WRAP'}
+          </p>
+          <h2 className="result-score">
+            {play.solved ? play.guesses.length : 'X'}
+            <span className="result-of">/{MAX_CHECKS}</span>
+          </h2>
+          <p className="result-verdict">
+            {play.solved
+              ? 'You found your groove.'
+              : 'Another day, another tune.'}
+          </p>
+          {title && (
+            <p className="result-title">
+              You rebuilt <em>{title}</em>
+              {credit ? ` (${credit})` : ''}.
+            </p>
+          )}
+        </header>
+        <GuessGrid notes={notes} play={play} />
+        <p className="result-caption">
+          {verdict(play)} · {play.guesses.length}{' '}
+          {play.guesses.length === 1 ? 'check' : 'checks'}
+        </p>
+      </motion.section>
+      <div className="result-meta">
+        <div>
+          <strong>
+            {me.streak} {me.streak === 1 ? 'day' : 'days'}
+          </strong>
+          <span>YOUR STREAK · BEST {me.best}</span>
+        </div>
+        <div>
+          <strong>{day === today ? untilNext(nextIn) : '12:00 UTC'}</strong>
+          <span>
+            {day === today ? 'UNTIL THE NEXT MIX' : 'A FRESH MIX DAILY'}
+          </span>
+        </div>
+      </div>
+      <div className="transport">
+        <ReplayButton scale={scale} notes={notes} />
+        <button type="button" className="btn btn-quiet" onClick={onShare}>
+          Copy result
+        </button>
+      </div>
+      {canPublish ? (
+        <button
+          type="button"
+          className="btn btn-primary btn-wide"
+          onClick={onCompose}
+        >
+          Make a tune. Pass it on. ↗
+        </button>
+      ) : null}
+      {!canPublish && (
+        <button
+          type="button"
+          className="btn btn-wide btn-primary"
+          onClick={onShelf}
+        >
+          Find your next earworm ↗
+        </button>
+      )}
+      {canPublish && (
+        <div className="result-secondary">
+          <button type="button" className="text-btn" onClick={onShelf}>
+            Explore the B-side · {shelfCount} tunes
+          </button>
+        </div>
+      )}
+      <details className="stats-disclosure">
+        <summary>The community mix & your week</summary>
+        <HistogramChart
+          histogram={histogram}
+          mine={play.solved ? play.guesses.length : null}
+        />
+        {me.loggedIn && <StreakRoll me={me} today={today} />}
+      </details>
+    </div>
+  );
+};

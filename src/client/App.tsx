@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import type {
   InitResponse,
   PublishError,
@@ -28,6 +29,8 @@ export type AppProps = {
 };
 
 export const App = ({ backend, host }: AppProps) => {
+  const appRef = useRef<HTMLElement>(null);
+  const still = useReducedMotion();
   const [init, setInit] = useState<InitResponse | null>(null);
   const [failed, setFailed] = useState(false);
   const [view, setView] = useState<View>({ name: 'daily' });
@@ -37,6 +40,16 @@ export const App = ({ backend, host }: AppProps) => {
   const [publishError, setPublishError] = useState<PublishError | null>(null);
 
   const [attempt, setAttempt] = useState(0);
+  const routeKey =
+    view.name === 'tune'
+      ? `${view.card.id}:${view.finished}`
+      : view.name === 'daily' && dailyShown
+        ? 'daily-result'
+        : view.name;
+  useEffect(() => {
+    appRef.current?.closest('.demo-frame')?.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0 });
+  }, [routeKey]);
 
   useEffect(() => {
     let live = true;
@@ -73,7 +86,7 @@ export const App = ({ backend, host }: AppProps) => {
     return (
       <main className="app">
         <div className="empty">
-          <p className="hint">The music box jammed.</p>
+          <p className="hint">A little static. Let’s try again.</p>
           <button type="button" className="btn btn-primary" onClick={load}>
             Try again
           </button>
@@ -85,7 +98,7 @@ export const App = ({ backend, host }: AppProps) => {
     return (
       <main className="app">
         <div className="empty">
-          <p className="hint">Winding the box…</p>
+          <p className="hint">Finding our rhythm…</p>
         </div>
       </main>
     );
@@ -207,11 +220,11 @@ export const App = ({ backend, host }: AppProps) => {
 
   const heading =
     view.name === 'daily'
-      ? `Plink #${daily.day}`
+      ? `Daily mix #${daily.day}`
       : view.name === 'shelf'
-        ? 'The shelf'
+        ? 'The B-side'
         : view.name === 'compose'
-          ? 'Your tune'
+          ? 'Make a tune'
           : view.card.name;
 
   const sub =
@@ -221,10 +234,12 @@ export const App = ({ backend, host }: AppProps) => {
         : `by u/${view.card.author}`
       : view.name === 'daily' && me.streak > 0
         ? `${me.streak}-day streak`
-        : null;
+        : view.name === 'daily'
+          ? 'One fresh tune, every day'
+          : null;
 
   return (
-    <main className="app">
+    <main className="app" ref={appRef}>
       <header className="topbar">
         {back ? (
           <button
@@ -245,7 +260,9 @@ export const App = ({ backend, host }: AppProps) => {
             </svg>
           </button>
         ) : (
-          <span className="icon-btn is-ghost" aria-hidden="true" />
+          <span className="topbar-logo" aria-label="Plink">
+            p<span>.</span>
+          </span>
         )}
         <div className="topbar-title">
           <h1>{heading}</h1>
@@ -254,9 +271,12 @@ export const App = ({ backend, host }: AppProps) => {
         <MuteButton />
       </header>
 
-      <div
+      <motion.div
         className="stage"
         key={view.name === 'tune' ? view.card.id : view.name}
+        initial={still ? false : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
       >
         {view.name === 'daily' && !(dailyDone && dailyShown) && (
           <Puzzle
@@ -389,7 +409,7 @@ export const App = ({ backend, host }: AppProps) => {
             </button>
           </div>
         )}
-      </div>
+      </motion.div>
     </main>
   );
 };

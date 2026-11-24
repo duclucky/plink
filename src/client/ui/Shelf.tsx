@@ -32,6 +32,9 @@ export const TuneRow = ({
     className={`tune${card.play?.solved || card.mine ? ' is-done' : ''}`}
     onClick={() => onOpen(card)}
   >
+    <span className="tune-art" aria-hidden="true">
+      ♫
+    </span>
     <span className="tune-main">
       <span className="tune-name">
         {card.name}
@@ -76,7 +79,7 @@ export const Shelf = ({
   onOpen,
   onCompose,
 }: ShelfProps) => {
-  if (!shelf) return <p className="hint">Dusting the shelf…</p>;
+  if (!shelf) return <p className="hint">Flipping through the records…</p>;
   const loved = shelf.top.filter((card) => card.hearts > 0 && !card.mine);
   const leader = loved[0] ?? null;
   const listed = new Set(loved.map((card) => card.id));
@@ -94,10 +97,17 @@ export const Shelf = ({
 
   return (
     <div className="shelf">
-      <p className="hint">
-        Tunes pinned by redditors today. Fix one, and leave a heart if you liked
-        it. The best-loved tune plays as tomorrow’s Encore.
-      </p>
+      <div className="shelf-intro">
+        <h2>
+          Good ears.
+          <br />
+          Great company.
+        </h2>
+        <p>
+          Little tunes by real redditors. Rebuild one, leave some love. Today’s
+          favourite becomes tomorrow’s Encore.
+        </p>
+      </div>
 
       {shelf.mine ? (
         <section>
@@ -110,7 +120,7 @@ export const Shelf = ({
           className="btn btn-primary btn-wide"
           onClick={onCompose}
         >
-          Pin a tune of your own
+          Drop a tune of your own ↗
         </button>
       ) : why ? (
         <p className="notice">{why}</p>
@@ -151,7 +161,7 @@ export const Shelf = ({
       )}
 
       <section>
-        <h3 className="section-title">From the workshop</h3>
+        <h3 className="section-title">The house collection</h3>
         {shelf.house.map((card) => (
           <TuneRow key={card.id} card={card} onOpen={onOpen} />
         ))}

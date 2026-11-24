@@ -1,69 +1,9 @@
 import { useEffect, useState, type MouseEvent } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import type { InitResponse } from '../../shared/api';
-import { weekdayOf } from '../../shared/day';
-import { ROWS } from '../../shared/game';
 import type { Backend } from '../backend';
-
-const DAY_NAMES = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-];
-
-/** A music-box drum with pins that say nothing about today's answer. */
-const Drum = ({ day, columns }: { day: number; columns: number }) => {
-  const width = 300;
-  const height = 120;
-  const colW = (width - 40) / columns;
-  return (
-    <svg className="drum" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
-      <rect
-        className="drum-body"
-        x="6"
-        y="10"
-        width={width - 12}
-        height={height - 20}
-        rx="18"
-      />
-      {Array.from({ length: ROWS }, (_, row) => (
-        <line
-          key={row}
-          className="board-lane"
-          x1="20"
-          x2={width - 20}
-          y1={26 + row * 17}
-          y2={26 + row * 17}
-        />
-      ))}
-      {Array.from({ length: columns }, (_, column) => {
-        const row = (column * 3 + day * 2 + (column % 2)) % ROWS;
-        const missing = (column + day) % 3 !== 0;
-        return missing ? (
-          <circle
-            key={column}
-            className="drum-hole"
-            cx={20 + colW * (column + 0.5)}
-            cy={26 + row * 17}
-            r="4"
-          />
-        ) : (
-          <circle
-            key={column}
-            className="drum-pin"
-            style={{ animationDelay: `${column * 180}ms` }}
-            cx={20 + colW * (column + 0.5)}
-            cy={26 + row * 17}
-            r="6.5"
-          />
-        );
-      })}
-    </svg>
-  );
-};
+import { PopArt } from './PopArt';
+import { MuteButton } from './MuteButton';
 
 export type SplashProps = {
   backend: Backend;
@@ -72,7 +12,7 @@ export type SplashProps = {
 
 export const Splash = ({ backend, onOpen }: SplashProps) => {
   const [init, setInit] = useState<InitResponse | null>(null);
-
+  const still = useReducedMotion();
   useEffect(() => {
     let live = true;
     backend
@@ -80,62 +20,76 @@ export const Splash = ({ backend, onOpen }: SplashProps) => {
       .then((data) => {
         if (live) setInit(data);
       })
-      .catch(() => {
-        // The splash still opens the game without its numbers.
-      });
+      .catch(() => {});
     return () => {
       live = false;
     };
   }, [backend]);
-
-  const day = init?.daily.day;
-  const pins = init?.daily.notes.length ?? 8;
-  const play = init?.play ?? null;
-  const fixed = init ? init.histogram.reduce((sum, n) => sum + n, 0) : 0;
-  const streak = init?.me.streak ?? 0;
-
-  const pitch = play?.done
-    ? `You fixed it in ${play.guesses.length}. Now fix a redditor’s tune, or pin your own.`
-    : play
-      ? `You have used ${play.guesses.length} of 5 checks. The box is waiting.`
-      : `This music box has lost its ${pins} pins. Listen to the tune, then put them back.`;
-
-  const action = play?.done
-    ? 'Open the shelf'
-    : play
-      ? 'Keep fixing'
-      : 'Open the box';
-
+  const play = init?.play;
+  const fixed = init?.histogram.reduce((sum, n) => sum + n, 0) ?? 0;
   return (
     <main className="splash">
-      <p className="eyebrow">
-        {day === undefined
-          ? 'A daily music box'
-          : `${DAY_NAMES[weekdayOf(day)] ?? 'Today'}’s music box`}
-      </p>
-      <h1 className="splash-title">
-        Plink
-        {day === undefined ? (
-          ''
-        ) : (
-          <span className="splash-number"> #{day}</span>
-        )}
-      </h1>
-      <Drum day={day ?? 1} columns={pins} />
-      <p className="splash-pitch">{pitch}</p>
-      <button
+      <header className="splash-top">
+        <span className="eyebrow">A DAILY MUSIC PUZZLE</span>
+        <MuteButton />
+      </header>
+      <div className="splash-brand">
+        <h1>
+          plink<span>.</span>
+        </h1>
+        <span className="edition">
+          VOL.
+          <br />
+          {String(init?.daily.day ?? 1).padStart(3, '0')}
+        </span>
+      </div>
+      <div className="splash-tag">SMALL TUNE. BIG EARWORM.</div>
+      <PopArt />
+      <motion.div
+        className="splash-copy"
+        initial={still ? false : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+      >
+        <h2>
+          A little listening.
+          <br />A little lightbulb moment.
+        </h2>
+        <p>
+          {play?.done
+            ? 'Daily tune: nailed it. More good sounds await.'
+            : 'Hear the melody. Find the missing notes. Make something click.'}
+        </p>
+      </motion.div>
+      <motion.button
+        whileTap={still ? {} : { scale: 0.97 }}
         type="button"
-        className="btn btn-primary btn-big"
+        className="btn btn-primary btn-wide btn-big"
         onClick={onOpen}
       >
-        {action}
-      </button>
-      <p className="splash-stats">
-        {fixed > 0
-          ? `${fixed.toLocaleString('en-US')} ${fixed === 1 ? 'redditor has' : 'redditors have'} fixed it`
-          : 'Be the first to fix it'}
-        {streak > 0 ? ` · your streak: ${streak}` : ''}
-      </p>
+        {play?.done
+          ? 'Back to the good stuff'
+          : play
+            ? 'Keep the rhythm going'
+            : 'Let’s play'}
+        <span className="arrow">↗</span>
+      </motion.button>
+      <div className="splash-bottom">
+        <span className="people-dots" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
+        <span>
+          {fixed > 0
+            ? `${fixed.toLocaleString('en-US')} redditors found their rhythm`
+            : 'One tune. A whole community.'}
+        </span>
+      </div>
+      <footer className="splash-footer">
+        <span>FRESH DAILY · 12:00 UTC</span>
+        <span>MADE FOR REDDIT</span>
+      </footer>
     </main>
   );
 };
