@@ -15,6 +15,8 @@ import {
   getShelf,
   heartTune,
   publishTune,
+  removeTune,
+  reportTune,
   submitPlay,
   type Actor,
 } from './service';
@@ -55,15 +57,30 @@ describe('daily content', () => {
       expect(dailyPuzzle(day)).toEqual(p);
     }
   });
-  it('plays a named classic on Sundays only', () => {
-    expect(dailyPuzzle(7).title).toBe(CLASSICS[0]?.title);
-    expect(dailyPuzzle(8).title).toBeNull();
+  it('plays a real, named tune every day and repeats after seven weeks', () => {
+    expect(CLASSICS).toHaveLength(49);
+    expect(new Set(CLASSICS.map((c) => c.title)).size).toBe(49);
+    expect(new Set(CLASSICS.map((c) => c.notes.join(''))).size).toBe(49);
+    expect(dailyPuzzle(1).title).toBe('Hot Cross Buns');
+    expect(dailyPuzzle(7).title).toBe('Ode to Joy');
+    expect(dailyPuzzle(39).title).toBe('Auld Lang Syne');
+    expect(dailyPuzzle(50)).toMatchObject({ title: 'Hot Cross Buns' });
     for (const c of CLASSICS)
       expect(tuneError(c.scale, c.notes), c.title).toBeNull();
   });
-  it('grows from 6 notes on Monday to 9 on Saturday', () => {
-    expect(dailyPuzzle(1).notes).toHaveLength(6);
-    expect(dailyPuzzle(6).notes).toHaveLength(9);
+  it('grows through the week: short on Monday, ten pins on Sunday', () => {
+    for (let week = 0; week < 7; week++) {
+      const lengths = Array.from(
+        { length: 7 },
+        (_, d) => dailyPuzzle(week * 7 + d + 1).notes.length
+      );
+      expect(lengths[0], `week ${week + 1}`).toBeLessThanOrEqual(7);
+      expect(lengths[6], `week ${week + 1}`).toBe(10);
+      expect(
+        [...lengths].sort((a, b) => a - b),
+        `week ${week + 1}`
+      ).toEqual(lengths);
+    }
   });
   it('makes valid workshop tunes of 6, 8 and 10 notes', () => {
     for (let day = 1; day <= 60; day++) {
@@ -81,7 +98,7 @@ describe('daily content', () => {
 });
 
 describe('rules', () => {
-  it('stops at the solving check and at five checks', () => {
+  it('stops at the solving check and at four checks', () => {
     const notes = [0, 1, 2, 3, 4, 0];
     const wrong = [1, 1, 1, 1, 1, 1];
     expect(evaluate(notes, [wrong, notes, wrong])).toEqual({
@@ -93,7 +110,7 @@ describe('rules', () => {
       notes,
       Array.from({ length: 7 }, () => wrong)
     );
-    expect(lost.guesses).toHaveLength(5);
+    expect(lost.guesses).toHaveLength(4);
     expect(lost).toMatchObject({ solved: false, done: true });
   });
   it('rejects tunes that are too short, too long or one note', () => {
@@ -113,7 +130,7 @@ describe('rules', () => {
     expect(tuneName(tune)).toBe(tuneName({ ...tune }));
     const play = evaluate(tune.notes, [[0, 1, 2, 3, 4, 1], tune.notes]);
     expect(shareText('Plink #3', tune.notes, play)).toBe(
-      'Plink #3 2/5\n🟩🟩🟩🟩🟩⬜\n🟩🟩🟩🟩🟩🟩'
+      'Plink #3 2/4\n🟩🟩🟩🟩🟩⬜\n🟩🟩🟩🟩🟩🟩'
     );
   });
 });
@@ -163,6 +180,107 @@ describe('playing the daily box', () => {
     await expect(
       submitPlay(store, ann, { id: 'nope', day: 2, guesses: [] }, at(2))
     ).rejects.toThrow();
+  });
+});
+
+describe('the four-check rule', () => {
+  it('lets a box be lost, counts the miss and keeps the listens', async () => {
+    const store = createMemoryStore();
+    const notes = dailyPuzzle(2).notes;
+    const wrong = notes.map((n) => (n + 1) % ROWS);
+    const res = await submitPlay(
+      store,
+      ann,
+      {
+        id: 'daily',
+        day: 2,
+        guesses: [wrong, wrong, wrong, wrong],
+        listens: 6,
+      },
+      at(2)
+    );
+    expect(res.play).toMatchObject({ solved: false, done: true });
+    expect(res.histogram).toEqual([0, 0, 0, 0, 1]);
+    const init = await getInit(store, ann, 2, at(2));
+    expect(init.listens).toBe(6);
+    expect(init.me.streak).toBe(0);
+  });
+
+  it('keeps the streak when a box is finished just after the day turns', async () => {
+    const store = createMemoryStore();
+    await solveDaily(store, ann, 2);
+    await solveDaily(store, ann, 3);
+    // Box 4 is finished three minutes into day 5.
+    await submitPlay(
+      store,
+      ann,
+      { id: 'daily', day: 4, guesses: [dailyPuzzle(4).notes] },
+      at(5) + 120_000
+    );
+    expect((await getInit(store, ann, 5, at(5) + 180_000)).me.streak).toBe(3);
+    const next = await solveDaily(store, ann, 5);
+    expect(next.me?.streak).toBe(4);
+  });
+});
+
+describe('looking after tunes', () => {
+  const tune = { scale: 'dusky' as const, notes: [0, 2, 4, 2, 1, 0, 3] };
+  it('lets the author take a tune down and pin another', async () => {
+    const store = createMemoryStore();
+    await solveDaily(store, ann, 2);
+    const made = await publishTune(store, ann, tune, at(2));
+    if (!made.ok) throw new Error('publish failed');
+    expect((await removeTune(store, bob, made.tune.id)).ok).toBe(false);
+    expect((await removeTune(store, ann, made.tune.id)).ok).toBe(true);
+    const shelf = await getShelf(store, ann, 2, at(2));
+    expect(shelf.mine).toBeNull();
+    expect(shelf.fresh).toHaveLength(0);
+    expect(shelf.canPublish).toBe(true);
+    expect((await publishTune(store, ann, tune, at(2))).ok).toBe(true);
+  });
+
+  it('lets a moderator remove a tune and hides one after three reports', async () => {
+    const store = createMemoryStore();
+    await solveDaily(store, ann, 2);
+    const made = await publishTune(store, ann, tune, at(2));
+    if (!made.ok) throw new Error('publish failed');
+    const id = made.tune.id;
+    expect((await reportTune(store, ann, id)).ok).toBe(false);
+    for (const name of ['b', 'b', 'c']) {
+      await reportTune(store, { userId: `t2_${name}`, username: name }, id);
+    }
+    expect((await getShelf(store, bob, 2, at(2))).fresh).toHaveLength(1);
+    await reportTune(store, { userId: 't2_d', username: 'd' }, id);
+    expect((await getShelf(store, bob, 2, at(2))).fresh).toHaveLength(0);
+    const mod: Actor = { userId: 't2_mod', username: 'mod', moderator: true };
+    expect((await removeTune(store, mod, id)).ok).toBe(true);
+  });
+
+  it('refuses the day’s own tune in another mood and a late pin', async () => {
+    const store = createMemoryStore();
+    await solveDaily(store, ann, 2);
+    const copy = { scale: 'misty' as const, notes: dailyPuzzle(2).notes };
+    expect(await publishTune(store, ann, copy, at(2))).toMatchObject({
+      error: 'duplicate',
+    });
+    expect(
+      await publishTune(store, ann, { ...tune, day: 1 }, at(2))
+    ).toMatchObject({ error: 'newday' });
+  });
+
+  it('tells the author the next day how their tune did, and needs a heart for an Encore', async () => {
+    const store = createMemoryStore();
+    await solveDaily(store, ann, 2);
+    await solveDaily(store, bob, 2);
+    const made = await publishTune(store, ann, tune, at(2));
+    if (!made.ok) throw new Error('publish failed');
+    expect((await getInit(store, bob, 3, at(3))).encore).toBeNull();
+    expect((await getInit(store, ann, 3, at(3))).news).toMatchObject({
+      name: made.tune.name,
+      solves: 0,
+      hearts: 0,
+      encore: false,
+    });
   });
 });
 

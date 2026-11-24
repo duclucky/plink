@@ -14,6 +14,7 @@ const WEEKDAY_NAMES = [
 
 const postKey = (day: number) => `day:${day}:post`;
 const lockKey = (day: number) => `day:${day}:posting`;
+const threadKey = (day: number) => `day:${day}:thread`;
 const LOCK_SECONDS = 120;
 const DAY_SECONDS = 24 * 60 * 60;
 
@@ -48,6 +49,10 @@ export const ensureDailyPost = async (
   // a failed save can never lead to a second post.
   await redis.expire(lockKey(day), DAY_SECONDS);
   await redis.set(postKey(day), id);
+  // The results thread is a nicety: the box is up either way.
+  await resultsThread(day, id).catch((error: unknown) => {
+    console.error(`Plink #${day}: no results thread yet: ${error}`);
+  });
   return { id, day, created: true };
 };
 
@@ -60,8 +65,31 @@ const submitDailyPost = async (day: number) => {
     entry: 'default',
     postData: { day },
     textFallback: {
-      text: `Plink #${day}. A music box lost its ${notes} pins. Listen to the tune, put the pins back in five checks or fewer, then pin a tune of your own for others to fix. Open this post in the Reddit app or on new Reddit to play.`,
+      text: `Plink #${day}. A music box lost its ${notes} pins. Listen to the tune, put the pins back in four checks or fewer, then pin a tune of your own for others to fix. Open this post in the Reddit app or on new Reddit to play.`,
     },
   });
   return post.id;
+};
+
+/**
+ * The pinned comment players post their results under, made once per box.
+ * Returns the id to reply to: the pinned comment, or the post if pinning it
+ * is not possible.
+ */
+export const resultsThread = async (day: number, postId: string) => {
+  const saved = await redis.get(threadKey(day));
+  if (saved) return saved;
+  const turn = await redis.incrBy(`${threadKey(day)}:making`, 1);
+  await redis.expire(`${threadKey(day)}:making`, LOCK_SECONDS);
+  if (turn !== 1) return postId;
+  const comment = await reddit.submitComment({
+    id: `t3_${postId.replace(/^t3_/, '')}`,
+    text: `**Plink #${day} results.** Finished the box? Post your grid under this comment and see how other redditors did. No tune names, please: keep it a surprise for the next player.`,
+  });
+  await redis.set(threadKey(day), comment.id);
+  await redis.expire(threadKey(day), 90 * DAY_SECONDS);
+  await comment.distinguish(true).catch((error: unknown) => {
+    console.error(`Plink #${day}: results thread not pinned: ${error}`);
+  });
+  return comment.id;
 };

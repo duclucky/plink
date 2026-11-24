@@ -8,6 +8,8 @@ export const redisStore: Store = {
     await redis.set(key, value);
   },
   incrBy: (key, amount) => redis.incrBy(key, amount),
+  del: (key) => redis.del(key),
+  expire: (key, seconds) => redis.expire(key, seconds),
   hGet: (key, field) => redis.hGet(key, field),
   hGetAll: async (key) => (await redis.hGetAll(key)) ?? {},
   hSet: async (key, fields) => {

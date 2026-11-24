@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ScaleId } from '../../shared/game';
-import { STEP, playNote } from '../audio';
+import { STEP, playTune, type TuneRun } from '../audio';
 
 export type Playback = {
   /** Column sounding right now. */
@@ -20,11 +20,11 @@ export type Playback = {
 export const usePlayback = (): Playback => {
   const [playhead, setPlayhead] = useState<number | null>(null);
   const [kind, setKind] = useState<string | null>(null);
-  const timers = useRef<number[]>([]);
+  const run = useRef<TuneRun | null>(null);
 
   const stop = useCallback(() => {
-    timers.current.forEach((id) => window.clearTimeout(id));
-    timers.current = [];
+    run.current?.stop();
+    run.current = null;
     setPlayhead(null);
     setKind(null);
   }, []);
@@ -32,31 +32,29 @@ export const usePlayback = (): Playback => {
   const start = useCallback<Playback['start']>(
     (nextKind, scale, notes, options) => {
       stop();
-      const step = (options?.step ?? STEP) * 1000;
       setKind(nextKind);
-      notes.forEach((row, i) => {
-        timers.current.push(
-          window.setTimeout(() => {
-            setPlayhead(i);
-            if (row !== null) playNote(scale, row);
-          }, i * step)
-        );
-      });
-      timers.current.push(
-        window.setTimeout(
-          () => {
-            setPlayhead(null);
-            setKind(null);
-            options?.onEnd?.();
-          },
-          notes.length * step + 200
-        )
+      run.current = playTune(
+        scale,
+        notes,
+        options?.step ?? STEP,
+        setPlayhead,
+        () => {
+          run.current = null;
+          setPlayhead(null);
+          setKind(null);
+          options?.onEnd?.();
+        }
       );
     },
     [stop]
   );
 
-  useEffect(() => stop, [stop]);
+  useEffect(
+    () => () => {
+      run.current?.stop();
+    },
+    []
+  );
 
   return { playhead, kind, start, stop };
 };

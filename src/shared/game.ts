@@ -1,5 +1,5 @@
 export const ROWS = 5;
-export const MAX_CHECKS = 5;
+export const MAX_CHECKS = 4;
 export const MIN_NOTES = 6;
 export const MAX_NOTES = 10;
 
@@ -218,8 +218,8 @@ const hash = (text: string) => {
 };
 
 /** Tunes have no free text: their name is derived from their notes. */
-export const tuneName = (tune: Tune) => {
-  const h = hash(signature(tune));
+export const tuneName = (tune: Tune, salt = 0) => {
+  const h = hash(salt > 0 ? `${signature(tune)}#${salt}` : signature(tune));
   const adjective = ADJECTIVES[h % ADJECTIVES.length] ?? 'Amber';
   const noun = NOUNS[(h >>> 8) % NOUNS.length] ?? 'Sparrow';
   return `${adjective} ${noun}`;
@@ -228,13 +228,19 @@ export const tuneName = (tune: Tune) => {
 export const shareText = (
   label: string,
   notes: readonly number[],
-  play: Play
+  play: Play,
+  /** Times the player heard the tune before finishing, when known. */
+  listens: number | null = null
 ) => {
   const score = play.solved ? `${play.guesses.length}` : 'X';
+  const heard =
+    listens === null
+      ? ''
+      : ` · ${listens === 1 ? '1 listen' : `${listens} listens`}`;
   const rows = play.guesses.map((guess) =>
     grade(notes, guess)
       .map((ok) => (ok ? '🟩' : '⬜'))
       .join('')
   );
-  return [`${label} ${score}/${MAX_CHECKS}`, ...rows].join('\n');
+  return [`${label} ${score}/${MAX_CHECKS}${heard}`, ...rows].join('\n');
 };

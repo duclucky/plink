@@ -5,6 +5,9 @@ export type Store = {
   get(key: string): Promise<string | undefined>;
   set(key: string, value: string): Promise<void>;
   incrBy(key: string, amount: number): Promise<number>;
+  del(key: string): Promise<void>;
+  /** Lets a key lapse after this many seconds without a refresh. */
+  expire(key: string, seconds: number): Promise<void>;
   hGet(key: string, field: string): Promise<string | undefined>;
   hGetAll(key: string): Promise<Record<string, string>>;
   hSet(key: string, fields: Record<string, string>): Promise<void>;
@@ -80,6 +83,14 @@ export const createMemoryStore = (
       zset(key)[member] = score;
       changed();
     },
+    del: async (key) => {
+      delete data.strings[key];
+      delete data.hashes[key];
+      delete data.zsets[key];
+      changed();
+    },
+    // The in-memory store is short-lived; nothing needs to lapse.
+    expire: async () => undefined,
     zRem: async (key, member) => {
       delete zset(key)[member];
       changed();

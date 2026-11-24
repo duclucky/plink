@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { isMuted, setMuted } from '../audio';
+import { setMuted } from '../audio';
+import { useMuted } from './useMuted';
 
 export const MuteButton = () => {
-  const [muted, setState] = useState(isMuted);
+  const muted = useMuted();
   return (
     <button
       type="button"
@@ -11,7 +11,6 @@ export const MuteButton = () => {
       aria-label={muted ? 'Turn sound on' : 'Turn sound off'}
       onClick={() => {
         setMuted(!muted);
-        setState(!muted);
       }}
     >
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">

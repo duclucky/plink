@@ -7,8 +7,11 @@ import type {
   PlayRequest,
   PlayResponse,
   PublishResponse,
+  RemoveResponse,
+  ReportResponse,
   ShelfResponse,
   TuneCard,
+  TuneNews,
 } from './api';
 import { DAY_MS, dayNumber, dayStart } from './day';
 import {
@@ -19,6 +22,7 @@ import {
   isGuess,
   isPrefix,
   isScaleId,
+  shareText,
   signature,
   tuneError,
   tuneName,
@@ -38,6 +42,10 @@ import type { Store } from './store';
 export type Actor = {
   userId: string | undefined;
   username: string | undefined;
+  /** May take any tune off the shelf. */
+  moderator?: boolean;
+  /** Looks up the player's snoovatar; only called when a face is needed. */
+  avatar?: () => Promise<string | null>;
 };
 
 export class ServiceError extends Error {
@@ -49,6 +57,18 @@ export class ServiceError extends Error {
 }
 
 const SHELF_PAGE = 20;
+/** Reports from this many redditors take a tune off the shelf. */
+const REPORTS_TO_HIDE = 3;
+const FACES = 5;
+const DAY_SECONDS = 86_400;
+/**
+ * Everything that names a redditor lapses on its own: a day's plays and tunes
+ * after five weeks, a streak after two months without a play. Reddit asks
+ * apps not to keep a deleted account's data, and nothing here is needed
+ * longer than that.
+ */
+const DAY_TTL = 35 * DAY_SECONDS;
+const PLAYER_TTL = 60 * DAY_SECONDS;
 const ROLL_DAYS = 7;
 const DAILY = 'daily';
 
@@ -65,11 +85,19 @@ const keys = {
   hearts: (id: string) => `hearts:${id}`,
   encore: (day: number) => `encore:${day}`,
   seq: (day: number) => `tuneseq:${day}`,
+  names: (day: number) => `tunenames:${day}`,
+  reports: (id: string) => `reports:${id}`,
+  faces: (day: number) => `faces:${day}`,
 };
+
+const keep = (store: Store, seconds: number, ...names: string[]) =>
+  Promise.all(names.map((name) => store.expire(name, seconds)));
 
 const noPlays: Record<string, string> = {};
 
 const doneField = (id: string) => `${id}!`;
+const listensField = (id: string) => `${id}@`;
+const commentField = (id: string) => `${id}#`;
 
 const toCount = (text: string | undefined) => {
   const n = Number(text ?? 0);
@@ -103,10 +131,12 @@ const clampDay = (day: number | undefined, today: number) =>
 type StoredTune = {
   id: string;
   day: number;
+  name: string;
   scale: ScaleId;
   notes: number[];
   author: string;
   authorId: string | null;
+  avatar: string | null;
   house: boolean;
   hearts: number;
   solves: number;
@@ -124,10 +154,12 @@ const loadTune = async (
     return {
       id,
       day: workshop.day,
+      name: tuneName(tune),
       scale: tune.scale,
       notes: tune.notes,
       author: WORKSHOP_AUTHOR,
       authorId: null,
+      avatar: null,
       house: true,
       hearts: toCount(fields.hearts),
       solves: toCount(fields.solves),
@@ -139,10 +171,12 @@ const loadTune = async (
   return {
     id,
     day: toCount(fields.day),
+    name: fields.name ?? tuneName({ scale: fields.scale, notes }),
     scale: fields.scale,
     notes,
     author: fields.author ?? 'someone',
     authorId: fields.authorId ?? null,
+    avatar: fields.avatar ? fields.avatar : null,
     house: false,
     hearts: toCount(fields.hearts),
     solves: toCount(fields.solves),
@@ -169,8 +203,9 @@ const toCards = async (
     tunes.map(async (tune) => ({
       id: tune.id,
       day: tune.day,
-      name: tuneName(tune),
+      name: tune.name,
       author: tune.author,
+      avatar: tune.avatar,
       house: tune.house,
       scale: tune.scale,
       notes: tune.notes,
@@ -197,7 +232,7 @@ const readHistogram = async (store: Store, day: number): Promise<Histogram> => {
     toCount(h['2']),
     toCount(h['3']),
     toCount(h['4']),
-    toCount(h['5']),
+    toCount(h.x),
   ];
 };
 
@@ -214,6 +249,9 @@ const readMe = async (
       streak: 0,
       best: 0,
       roll: Array.from({ length: ROLL_DAYS }, () => null),
+      avatar: null,
+      moderator: false,
+      flair: false,
     };
   }
   const [user, roll] = await Promise.all([
@@ -230,6 +268,9 @@ const readMe = async (
       const value = roll[String(today - ROLL_DAYS + 1 + i)];
       return value === undefined ? null : toCount(value);
     }),
+    avatar: user.avatar ? user.avatar : null,
+    moderator: actor.moderator === true,
+    flair: user.flair === '1',
   };
 };
 
@@ -246,8 +287,11 @@ const encoreFor = async (store: Store, day: number) => {
   const best = [...tunes].sort(
     (a, b) => b.hearts - a.hearts || b.solves - a.solves || a.seq - b.seq
   )[0];
-  await store.set(keys.encore(day), best ? best.id : '-');
-  return best ?? null;
+  // A tune nobody loved is not a favourite: no hearts, no Encore.
+  const winner = best && best.hearts > 0 ? best : null;
+  await store.set(keys.encore(day), winner ? winner.id : '-');
+  await keep(store, DAY_TTL, keys.encore(day));
+  return winner;
 };
 
 export const getInit = async (
@@ -267,7 +311,7 @@ export const getInit = async (
     credit: puzzle.credit,
   };
   const userId = actor.userId;
-  const [plays, histogram, encoreTune, me, shelfCount, myTuneId] =
+  const [plays, histogram, encoreTune, me, shelfCount, myTuneId, faces, past] =
     await Promise.all([
       userId ? store.hGetAll(keys.plays(day, userId)) : noPlays,
       readHistogram(store, day),
@@ -275,18 +319,39 @@ export const getInit = async (
       readMe(store, actor, today),
       store.zCard(keys.fresh(day)),
       userId ? store.hGet(keys.tuneBy(day), userId) : undefined,
+      store.zTop(keys.faces(day), FACES),
+      // News about yesterday's tune belongs on today's box only.
+      userId && day === today && day > 1
+        ? store.hGet(keys.tuneBy(day - 1), userId)
+        : undefined,
     ]);
   const [encore] = encoreTune ? await toCards(store, actor, [encoreTune]) : [];
+  const pastTune = past ? await loadTune(store, past) : null;
+  const news: TuneNews | null = pastTune
+    ? {
+        id: pastTune.id,
+        name: pastTune.name,
+        solves: pastTune.solves,
+        hearts: pastTune.hearts,
+        encore: encoreTune?.id === pastTune.id,
+      }
+    : null;
+  const play = savedPlay(daily.notes, plays, DAILY);
+  const heard = plays[listensField(DAILY)];
   return {
     type: 'init',
     today,
     nextIn: Math.max(0, dayStart(today) + DAY_MS - now),
     daily,
-    play: savedPlay(daily.notes, plays, DAILY),
+    play,
+    listens: play?.done && heard !== undefined ? toCount(heard) : null,
+    commented: plays[commentField(DAILY)] !== undefined,
     histogram,
     encore: encore ?? null,
+    news,
+    faces: faces.map((face) => face.member),
     me,
-    shelfCount: shelfCount + WORKSHOP_COUNT,
+    shelfCount,
     myTuneId: myTuneId ?? null,
   };
 };
@@ -364,17 +429,39 @@ export const submitPlay = async (
     await store.hSet(playsKey, { [field]: saved });
     const first =
       incoming.done && (await store.hSetNX(playsKey, doneField(field), saved));
+    if (first) {
+      const heard = Number(request.listens);
+      const listens = Number.isFinite(heard)
+        ? Math.max(0, Math.min(99, Math.floor(heard)))
+        : 0;
+      await store.hSet(playsKey, { [listensField(field)]: String(listens) });
+    }
     if (first && isDaily) {
       const checks = incoming.solved ? incoming.guesses.length : 0;
-      if (incoming.solved) {
-        await store.hIncrBy(keys.hist(day), String(checks), 1);
-      }
+      await store.hIncrBy(
+        keys.hist(day),
+        incoming.solved ? String(checks) : 'x',
+        1
+      );
       await store.hSet(keys.roll(userId), { [String(day)]: String(checks) });
-      if (day === today) await bumpStreak(store, userId, day, incoming.solved);
+      // A box opened before the day turned and finished after still counts.
+      if (day >= today - 1) {
+        await bumpStreak(store, userId, day, incoming.solved);
+      }
+      const face = incoming.solved ? await actor.avatar?.() : null;
+      if (face) {
+        await Promise.all([
+          store.zAdd(keys.faces(day), face, now),
+          store.hSet(keys.user(userId), { avatar: face }),
+        ]);
+      }
+      await keep(store, DAY_TTL, keys.faces(day));
+      await keep(store, PLAYER_TTL, keys.user(userId), keys.roll(userId));
     }
     if (first && tune && incoming.solved && tune.authorId !== userId) {
       solves = await store.hIncrBy(keys.tune(tune.id), 'solves', 1);
     }
+    await keep(store, DAY_TTL, playsKey);
   }
 
   return {
@@ -445,7 +532,7 @@ export const getShelf = async (
 export const publishTune = async (
   store: Store,
   actor: Actor,
-  request: { scale: unknown; notes: unknown },
+  request: { scale: unknown; notes: unknown; day?: unknown },
   now: number
 ): Promise<PublishResponse> => {
   const fail = (error: Extract<PublishResponse, { ok: false }>['error']) =>
@@ -458,31 +545,46 @@ export const publishTune = async (
   if (!isScaleId(scale) || !Array.isArray(notes)) return fail('notes');
   const rows = notes.filter((n): n is number => typeof n === 'number');
   const today = dayNumber(now);
+  if (typeof request.day === 'number' && request.day !== today) {
+    return fail('newday');
+  }
   if (!(await dailyDone(store, userId, today))) return fail('locked');
 
-  const sig = signature({ scale, notes: rows });
+  // The day's own tunes cannot be pinned again, in any mood.
+  const pins = encodeNotes(rows);
   const taken = [
-    signature(dailyPuzzle(today)),
-    ...Array.from({ length: WORKSHOP_COUNT }, (_, i) =>
-      signature(workshopTune(today, i))
+    dailyPuzzle(today).notes,
+    ...Array.from(
+      { length: WORKSHOP_COUNT },
+      (_, i) => workshopTune(today, i).notes
     ),
-  ];
-  if (taken.includes(sig)) return fail('duplicate');
+  ].map(encodeNotes);
+  if (taken.includes(pins)) return fail('duplicate');
   if (!(await store.hSetNX(keys.tuneBy(today), userId, ''))) {
     return fail('already');
   }
+  const sig = signature({ scale, notes: rows });
   const seq = await store.incrBy(keys.seq(today), 1);
   const id = `${today}-${seq}`;
   if (!(await store.hSetNX(keys.tuneSig(today), sig, id))) {
     await store.hDel(keys.tuneBy(today), userId);
     return fail('duplicate');
   }
+  // Two tunes on one shelf never share a name: a taken name is rolled again.
+  let name = tuneName({ scale, notes: rows });
+  for (let salt = 0; salt < 8; salt++) {
+    name = tuneName({ scale, notes: rows }, salt);
+    if (await store.hSetNX(keys.names(today), name, id)) break;
+  }
   try {
+    const avatar = (await actor.avatar?.()) ?? '';
     await store.hSet(keys.tune(id), {
+      name,
       scale,
-      notes: encodeNotes(rows),
+      notes: pins,
       author: actor.username ?? 'someone',
       authorId: userId,
+      avatar,
       day: String(today),
       seq: String(seq),
       hearts: '0',
@@ -493,6 +595,17 @@ export const publishTune = async (
       store.zAdd(keys.top(today), id, 0),
       store.zAdd(keys.fresh(today), id, seq),
     ]);
+    await keep(
+      store,
+      DAY_TTL,
+      keys.tune(id),
+      keys.tuneBy(today),
+      keys.tuneSig(today),
+      keys.names(today),
+      keys.top(today),
+      keys.fresh(today),
+      keys.seq(today)
+    );
   } catch (error) {
     // Take a half-saved tune off both lists, then give the player their one
     // tune back. If the lists cannot be cleared the tune stays the player's.
@@ -503,6 +616,7 @@ export const publishTune = async (
     await Promise.all([
       store.hDel(keys.tuneBy(today), userId),
       store.hDel(keys.tuneSig(today), sig),
+      store.hDel(keys.names(today), name),
     ]);
     throw error;
   }
@@ -510,6 +624,110 @@ export const publishTune = async (
   const [card] = tune ? await toCards(store, actor, [tune]) : [];
   return card ? { type: 'tune', ok: true, tune: card } : fail('notes');
 };
+
+/** Takes a tune off the shelf for good: its author can, and so can a moderator. */
+export const removeTune = async (
+  store: Store,
+  actor: Actor,
+  id: string
+): Promise<RemoveResponse> => {
+  const tune = await loadTune(store, id);
+  const userId = actor.userId;
+  const allowed =
+    tune !== null &&
+    !tune.house &&
+    userId !== undefined &&
+    (tune.authorId === userId || actor.moderator === true);
+  if (!tune || !allowed) return { type: 'remove', ok: false };
+  await Promise.all([
+    store.zRem(keys.top(tune.day), id),
+    store.zRem(keys.fresh(tune.day), id),
+  ]);
+  await Promise.all([
+    tune.authorId
+      ? store.hDel(keys.tuneBy(tune.day), tune.authorId)
+      : Promise.resolve(),
+    store.hDel(keys.tuneSig(tune.day), signature(tune)),
+    store.hDel(keys.names(tune.day), tune.name),
+    store.del(keys.tune(id)),
+    store.del(keys.hearts(id)),
+    store.del(keys.reports(id)),
+  ]);
+  return { type: 'remove', ok: true };
+};
+
+/** One report per redditor; enough of them take the tune off the shelf. */
+export const reportTune = async (
+  store: Store,
+  actor: Actor,
+  id: string
+): Promise<ReportResponse> => {
+  const tune = await loadTune(store, id);
+  const userId = actor.userId;
+  if (!tune || tune.house || !userId || tune.authorId === userId) {
+    return { type: 'report', ok: false };
+  }
+  if (await store.hSetNX(keys.reports(id), userId, '1')) {
+    const reports = await store.hIncrBy(keys.tune(id), 'reports', 1);
+    await keep(store, DAY_TTL, keys.reports(id));
+    if (reports >= REPORTS_TO_HIDE) {
+      await Promise.all([
+        store.zRem(keys.top(tune.day), id),
+        store.zRem(keys.fresh(tune.day), id),
+      ]);
+    }
+  }
+  return { type: 'report', ok: true };
+};
+
+/**
+ * The words a player may post as a comment: their own finished result, built
+ * here from what the server saved, with no tune name to spoil the box.
+ */
+export const resultComment = async (
+  store: Store,
+  actor: Actor,
+  postDay: number | undefined,
+  now: number
+) => {
+  const userId = actor.userId;
+  if (!userId) return null;
+  const day = clampDay(postDay, dayNumber(now));
+  const notes = dailyPuzzle(day).notes;
+  const plays = await store.hGetAll(keys.plays(day, userId));
+  const play = savedPlay(notes, plays, DAILY);
+  if (!play?.done) return null;
+  const heard = plays[listensField(DAILY)];
+  return {
+    day,
+    posted: plays[commentField(DAILY)] !== undefined,
+    text: shareText(
+      `Plink #${day}`,
+      notes,
+      play,
+      heard === undefined ? null : toCount(heard)
+    ),
+  };
+};
+
+/** True the first time only, so one result is never posted twice. */
+export const claimComment = (store: Store, userId: string, day: number) =>
+  store.hSetNX(keys.plays(day, userId), commentField(DAILY), '1');
+
+export const releaseComment = (store: Store, userId: string, day: number) =>
+  store.hDel(keys.plays(day, userId), commentField(DAILY));
+
+/** Remembers that the player wants their streak as flair; returns its text. */
+export const wearStreak = async (store: Store, actor: Actor, now: number) => {
+  const userId = actor.userId;
+  if (!userId) return null;
+  await store.hSet(keys.user(userId), { flair: '1' });
+  const me = await readMe(store, actor, dayNumber(now));
+  return streakFlair(me.streak);
+};
+
+export const streakFlair = (streak: number) =>
+  streak > 0 ? `Plink streak: ${streak}` : 'Plink player';
 
 /** A heart is earned: only people who solved a tune can give one. */
 export const heartTune = async (
@@ -535,6 +753,7 @@ export const heartTune = async (
       await handBack();
       throw error;
     });
+  await keep(store, DAY_TTL, keys.hearts(id));
   if (!tune.house) {
     await store
       .zIncrBy(keys.top(tune.day), id, 1)
