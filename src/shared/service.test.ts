@@ -227,7 +227,8 @@ describe('the community shelf', () => {
     const store = {
       ...memory,
       zAdd: async (key: string, member: string, score: number) => {
-        if (broken) throw new Error('redis is down');
+        // Only the ranking write fails; the tune reaches the other list.
+        if (broken && key.endsWith(':top')) throw new Error('redis is down');
         await memory.zAdd(key, member, score);
       },
     };
@@ -239,6 +240,8 @@ describe('the community shelf', () => {
     expect(await publishTune(store, ann, tune, at(2))).toMatchObject({
       ok: true,
     });
+    const shelf = await getShelf(store, bob, 2, at(2));
+    expect(shelf.fresh.filter((card) => !card.house)).toHaveLength(1);
   });
 
   it('gives hearts only to solvers and makes the favourite the next Encore', async () => {

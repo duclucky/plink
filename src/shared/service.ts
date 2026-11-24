@@ -479,7 +479,12 @@ export const publishTune = async (
       store.zAdd(keys.fresh(today), id, seq),
     ]);
   } catch (error) {
-    // Give the player their one tune back if the write did not finish.
+    // Take a half-saved tune off both lists, then give the player their one
+    // tune back. If the lists cannot be cleared the tune stays the player's.
+    await Promise.all([
+      store.zRem(keys.top(today), id),
+      store.zRem(keys.fresh(today), id),
+    ]);
     await Promise.all([
       store.hDel(keys.tuneBy(today), userId),
       store.hDel(keys.tuneSig(today), sig),

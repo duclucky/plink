@@ -22,6 +22,9 @@ export const redisStore: Store = {
   zAdd: async (key, member, score) => {
     await redis.zAdd(key, { member, score });
   },
+  zRem: async (key, member) => {
+    await redis.zRem(key, [member]);
+  },
   zIncrBy: (key, member, amount) => redis.zIncrBy(key, member, amount),
   zTop: (key, count) =>
     redis.zRange(key, 0, count - 1, { by: 'rank', reverse: true }),

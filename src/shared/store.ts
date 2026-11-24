@@ -13,6 +13,7 @@ export type Store = {
   hIncrBy(key: string, field: string, amount: number): Promise<number>;
   hDel(key: string, field: string): Promise<void>;
   zAdd(key: string, member: string, score: number): Promise<void>;
+  zRem(key: string, member: string): Promise<void>;
   zIncrBy(key: string, member: string, amount: number): Promise<number>;
   /** Highest score first. */
   zTop(key: string, count: number): Promise<Scored[]>;
@@ -77,6 +78,10 @@ export const createMemoryStore = (
     },
     zAdd: async (key, member, score) => {
       zset(key)[member] = score;
+      changed();
+    },
+    zRem: async (key, member) => {
+      delete zset(key)[member];
       changed();
     },
     zIncrBy: async (key, member, amount) => {
