@@ -82,11 +82,11 @@ export const Puzzle = ({
   const hint = finishing
     ? 'That is the tune. Listen.'
     : !heard
-      ? 'Press Listen to hear the tune this box has lost.'
+      ? 'Listen first. Then tap a hole to place a pin.'
       : guesses.length === 0
         ? ready
           ? 'Check your pins. Right ones lock, wrong ones get crossed off.'
-          : 'Rebuild it: put one pin in each column. Higher rows sound higher.'
+          : 'One pin per column. Tap a letter to hear its note.'
         : stale > 0
           ? `${rightCount} of ${notes.length} right. Move the ${stale === 1 ? 'red pin' : `${stale} red pins`} and check again.`
           : 'Ready when you are.';
@@ -123,7 +123,22 @@ export const Puzzle = ({
   };
 
   return (
-    <div className="puzzle">
+    <div className={`puzzle${finishing ? ' is-finished' : ''}`}>
+      <div className="page-heading">
+        <p className="eyebrow">THE REPAIR BENCH</p>
+        <h2>{finishing ? 'There’s the melody.' : 'Make it sing again.'}</h2>
+      </div>
+      <div className="repair-steps" aria-label="How to play">
+        <span className={!heard ? 'is-current' : ''}>
+          01 <b>Listen</b>
+        </span>
+        <span className={heard && !ready ? 'is-current' : ''}>
+          02 <b>Place pins</b>
+        </span>
+        <span className={ready ? 'is-current' : ''}>
+          03 <b>Test it</b>
+        </span>
+      </div>
       <p className="hint" aria-live="polite">
         {hint}
       </p>
@@ -168,28 +183,36 @@ export const Puzzle = ({
           Play mine
         </button>
       </div>
-      <button
-        type="button"
-        className="btn btn-primary btn-wide"
-        disabled={!ready || finishing}
-        onClick={check}
-      >
-        Check my pins
-      </button>
-      <div
-        className="checks"
-        aria-label={`${checksLeft} of ${MAX_CHECKS} checks left`}
-      >
-        {Array.from({ length: MAX_CHECKS }, (_, i) => (
-          <span
-            key={i}
-            className={`tooth${i < guesses.length ? ' is-used' : ''}`}
-          />
-        ))}
-        <span className="checks-label">
-          {checksLeft === 1 ? 'last check' : `${checksLeft} checks left`}
-        </span>
-      </div>
+      {finishing ? (
+        <div className="solve-flourish" role="status">
+          <span aria-hidden="true">✳</span> All the little pieces, in harmony.
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="btn btn-primary btn-wide"
+          disabled={!ready || finishing}
+          onClick={check}
+        >
+          Check my pins
+        </button>
+      )}
+      {!finishing && (
+        <div
+          className="checks"
+          aria-label={`${checksLeft} of ${MAX_CHECKS} checks left`}
+        >
+          {Array.from({ length: MAX_CHECKS }, (_, i) => (
+            <span
+              key={i}
+              className={`tooth${i < guesses.length ? ' is-used' : ''}`}
+            />
+          ))}
+          <span className="checks-label">
+            {checksLeft === 1 ? 'last check' : `${checksLeft} checks left`}
+          </span>
+        </div>
+      )}
       <p className="fineprint">
         No sound? You can still fix it: crossed-off holes never come back.
       </p>

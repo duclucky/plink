@@ -154,51 +154,83 @@ export const Result = ({
   onShelf,
   onCompose,
 }: ResultProps) => (
-  <div className="result">
-    <header className="result-head">
-      <p className="eyebrow">Plink #{day} fixed</p>
-      <h2 className="result-score">
-        {play.solved ? play.guesses.length : 'X'}
-        <span className="result-of">/{MAX_CHECKS}</span>
-      </h2>
-      <p className="result-verdict">{verdict(play)}</p>
-      {title && (
-        <p className="result-title">
-          You rebuilt <em>{title}</em>
-          {credit ? ` (${credit})` : ''}.
+  <div className="result daily-result">
+    <div className="repair-certificate">
+      <div className="certificate-top">
+        <span>THE PLINK WORKSHOP</span>
+        <span>NO. {String(day).padStart(3, '0')}</span>
+      </div>
+      <header className="result-head">
+        <div className="repair-stamp" aria-hidden="true">
+          <span>BACK IN</span>
+          <strong>TUNE</strong>
+          <span>✦ ✦ ✦</span>
+        </div>
+        <p className="eyebrow">
+          DAILY BOX · {play.solved ? 'REPAIRED' : 'CLOSED'}
         </p>
-      )}
-    </header>
-    <GuessGrid notes={notes} play={play} />
-    <div className="transport">
-      <ReplayButton scale={scale} notes={notes} />
-      <button type="button" className="btn btn-quiet" onClick={onShare}>
-        Copy result
-      </button>
+        <h2 className="result-score">
+          {play.solved ? play.guesses.length : 'X'}
+          <span className="result-of">/{MAX_CHECKS}</span>
+        </h2>
+        <p className="result-verdict">{verdict(play)}</p>
+        {title && (
+          <p className="result-title">
+            You rebuilt <em>{title}</em>
+            {credit ? ` · ${credit}` : ''}
+          </p>
+        )}
+      </header>
+      <GuessGrid notes={notes} play={play} />
+      <div className="result-meta">
+        <div>
+          <strong>
+            {me.streak}
+            <span>{me.streak === 1 ? ' day' : ' days'}</span>
+          </strong>
+          <span>YOUR STREAK</span>
+        </div>
+        <div>
+          <strong>{day === today ? untilNext(nextIn) : 'Tomorrow'}</strong>
+          <span>UNTIL THE NEXT BOX</span>
+        </div>
+      </div>
+      <p className="certificate-note">
+        A little patience. A little music. Nicely done.
+      </p>
     </div>
-    {canPublish ? (
+    {canPublish && (
       <button
         type="button"
         className="btn btn-primary btn-wide"
         onClick={onCompose}
       >
-        Pin a tune of your own
+        Pin a melody of your own <span aria-hidden="true">↗</span>
       </button>
-    ) : null}
+    )}
+    <div className="transport">
+      <ReplayButton scale={scale} notes={notes} />
+      <button type="button" className="btn btn-quiet" onClick={onShare}>
+        Copy result <span aria-hidden="true">↗</span>
+      </button>
+    </div>
     <button
       type="button"
-      className={`btn btn-wide ${canPublish ? 'btn-quiet' : 'btn-primary'}`}
+      className={`btn btn-wide ${canPublish ? 'btn-text' : 'btn-primary'}`}
       onClick={onShelf}
     >
-      Fix other people’s tunes ({shelfCount})
+      Explore the shelf · {shelfCount} melodies{' '}
+      <span aria-hidden="true">→</span>
     </button>
-    <HistogramChart
-      histogram={histogram}
-      mine={play.solved ? play.guesses.length : null}
-    />
-    {me.loggedIn && <StreakRoll me={me} today={today} />}
-    {day === today && (
-      <p className="fineprint">Next box opens in {untilNext(nextIn)}.</p>
-    )}
+    <details className="result-details">
+      <summary>
+        Your week & the workshop <span aria-hidden="true">+</span>
+      </summary>
+      <HistogramChart
+        histogram={histogram}
+        mine={play.solved ? play.guesses.length : null}
+      />
+      {me.loggedIn && <StreakRoll me={me} today={today} />}
+    </details>
   </div>
 );

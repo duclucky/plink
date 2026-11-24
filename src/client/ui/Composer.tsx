@@ -45,6 +45,10 @@ export const Composer = ({ busy, error, onPublish }: ComposerProps) => {
 
   return (
     <div className="composer">
+      <div className="page-heading">
+        <p className="eyebrow">FROM YOUR WORKBENCH</p>
+        <h2>Leave a little melody.</h2>
+      </div>
       <p className="hint">
         Pin a tune for other redditors to fix. One pin per column; they will
         only hear it.

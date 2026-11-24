@@ -94,6 +94,10 @@ export const Shelf = ({
 
   return (
     <div className="shelf">
+      <div className="page-heading">
+        <p className="eyebrow">THE COMMUNITY COLLECTION</p>
+        <h2>Small tunes. Shared joy.</h2>
+      </div>
       <p className="hint">
         Tunes pinned by redditors today. Fix one, and leave a heart if you liked
         it. The best-loved tune plays as tomorrow’s Encore.

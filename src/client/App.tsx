@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   InitResponse,
   PublishError,
@@ -15,6 +15,7 @@ import { verdict } from './ui/verdict';
 import { Shelf } from './ui/Shelf';
 import { copyText, type Host } from './ui/host';
 import { HeartIcon } from './ui/icons';
+import { MakerMark } from './ui/Mechanism';
 
 type View =
   | { name: 'daily' }
@@ -37,6 +38,11 @@ export const App = ({ backend, host }: AppProps) => {
   const [publishError, setPublishError] = useState<PublishError | null>(null);
 
   const [attempt, setAttempt] = useState(0);
+  const root = useRef<HTMLElement>(null);
+  useEffect(() => {
+    root.current?.parentElement?.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0 });
+  }, [view.name, dailyShown]);
 
   useEffect(() => {
     let live = true;
@@ -224,7 +230,7 @@ export const App = ({ backend, host }: AppProps) => {
         : null;
 
   return (
-    <main className="app">
+    <main className="app" ref={root}>
       <header className="topbar">
         {back ? (
           <button
@@ -245,7 +251,9 @@ export const App = ({ backend, host }: AppProps) => {
             </svg>
           </button>
         ) : (
-          <span className="icon-btn is-ghost" aria-hidden="true" />
+          <span className="maker-mark" aria-hidden="true">
+            <MakerMark />
+          </span>
         )}
         <div className="topbar-title">
           <h1>{heading}</h1>

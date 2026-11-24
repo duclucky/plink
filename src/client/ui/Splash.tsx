@@ -1,10 +1,10 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import type { InitResponse } from '../../shared/api';
 import { weekdayOf } from '../../shared/day';
-import { ROWS } from '../../shared/game';
 import type { Backend } from '../backend';
+import { MakerMark, Mechanism } from './Mechanism';
 
-const DAY_NAMES = [
+const DAYS = [
   'Monday',
   'Tuesday',
   'Wednesday',
@@ -13,58 +13,6 @@ const DAY_NAMES = [
   'Saturday',
   'Sunday',
 ];
-
-/** A music-box drum with pins that say nothing about today's answer. */
-const Drum = ({ day, columns }: { day: number; columns: number }) => {
-  const width = 300;
-  const height = 120;
-  const colW = (width - 40) / columns;
-  return (
-    <svg className="drum" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
-      <rect
-        className="drum-body"
-        x="6"
-        y="10"
-        width={width - 12}
-        height={height - 20}
-        rx="18"
-      />
-      {Array.from({ length: ROWS }, (_, row) => (
-        <line
-          key={row}
-          className="board-lane"
-          x1="20"
-          x2={width - 20}
-          y1={26 + row * 17}
-          y2={26 + row * 17}
-        />
-      ))}
-      {Array.from({ length: columns }, (_, column) => {
-        const row = (column * 3 + day * 2 + (column % 2)) % ROWS;
-        const missing = (column + day) % 3 !== 0;
-        return missing ? (
-          <circle
-            key={column}
-            className="drum-hole"
-            cx={20 + colW * (column + 0.5)}
-            cy={26 + row * 17}
-            r="4"
-          />
-        ) : (
-          <circle
-            key={column}
-            className="drum-pin"
-            style={{ animationDelay: `${column * 180}ms` }}
-            cx={20 + colW * (column + 0.5)}
-            cy={26 + row * 17}
-            r="6.5"
-          />
-        );
-      })}
-    </svg>
-  );
-};
-
 export type SplashProps = {
   backend: Backend;
   onOpen: (event: MouseEvent<HTMLButtonElement>) => void;
@@ -72,7 +20,6 @@ export type SplashProps = {
 
 export const Splash = ({ backend, onOpen }: SplashProps) => {
   const [init, setInit] = useState<InitResponse | null>(null);
-
   useEffect(() => {
     let live = true;
     backend
@@ -80,62 +27,80 @@ export const Splash = ({ backend, onOpen }: SplashProps) => {
       .then((data) => {
         if (live) setInit(data);
       })
-      .catch(() => {
-        // The splash still opens the game without its numbers.
-      });
+      .catch(() => {});
     return () => {
       live = false;
     };
   }, [backend]);
-
   const day = init?.daily.day;
-  const pins = init?.daily.notes.length ?? 8;
-  const play = init?.play ?? null;
-  const fixed = init ? init.histogram.reduce((sum, n) => sum + n, 0) : 0;
-  const streak = init?.me.streak ?? 0;
-
-  const pitch = play?.done
-    ? `You fixed it in ${play.guesses.length}. Now fix a redditor’s tune, or pin your own.`
-    : play
-      ? `You have used ${play.guesses.length} of 5 checks. The box is waiting.`
-      : `This music box has lost its ${pins} pins. Listen to the tune, then put them back.`;
-
-  const action = play?.done
-    ? 'Open the shelf'
-    : play
-      ? 'Keep fixing'
-      : 'Open the box';
-
+  const fixed = init?.histogram.reduce((sum, n) => sum + n, 0) ?? 0;
   return (
     <main className="splash">
-      <p className="eyebrow">
-        {day === undefined
-          ? 'A daily music box'
-          : `${DAY_NAMES[weekdayOf(day)] ?? 'Today'}’s music box`}
-      </p>
-      <h1 className="splash-title">
-        Plink
-        {day === undefined ? (
-          ''
+      <header className="splash-masthead">
+        <span className="wordmark">
+          <MakerMark /> plink
+        </span>
+        <span className="edition">
+          THE DAILY MUSIC BOX
+          <br />
+          {day ? `VOL. ${String(day).padStart(3, '0')}` : 'MADE FOR REDDIT'}
+        </span>
+      </header>
+      <div className="splash-heading">
+        <p className="eyebrow">
+          <span className="live-dot" />{' '}
+          {day
+            ? `${DAYS[weekdayOf(day)]}’s little ritual`
+            : 'A little daily ritual'}
+        </p>
+        <h1>
+          A little tune.
+          <br />
+          <em>A little tinkering.</em>
+        </h1>
+      </div>
+      <div className="hero-object">
+        <Mechanism hero />
+        <span className="object-caption">
+          WALNUT · BRASS · A FEW MISSING NOTES
+        </span>
+      </div>
+      <p className="splash-pitch">
+        {init?.play?.done ? (
+          'Your box is singing again. There are more little melodies on the shelf.'
         ) : (
-          <span className="splash-number"> #{day}</span>
+          <>
+            Someone has unpinned the melody.
+            <br />
+            Listen closely. Put it back together.
+          </>
         )}
-      </h1>
-      <Drum day={day ?? 1} columns={pins} />
-      <p className="splash-pitch">{pitch}</p>
+      </p>
       <button
         type="button"
         className="btn btn-primary btn-big"
         onClick={onOpen}
       >
-        {action}
+        <span>
+          {init?.play?.done
+            ? 'Reopen the box'
+            : init?.play
+              ? 'Keep tinkering'
+              : 'Open the box'}
+        </span>
+        <span aria-hidden="true">↗</span>
       </button>
-      <p className="splash-stats">
-        {fixed > 0
-          ? `${fixed.toLocaleString('en-US')} ${fixed === 1 ? 'redditor has' : 'redditors have'} fixed it`
-          : 'Be the first to fix it'}
-        {streak > 0 ? ` · your streak: ${streak}` : ''}
-      </p>
+      <div className="splash-footer">
+        <p>
+          <span className="small-star">✳</span> A fresh melody, every day.
+        </p>
+        <p>
+          {fixed > 0
+            ? `${fixed} boxes brought back to life`
+            : 'A quiet moment, made for you'}{' '}
+          <span className="footer-dot">·</span> by Plink
+        </p>
+      </div>
     </main>
   );
 };
