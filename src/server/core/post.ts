@@ -32,8 +32,10 @@ export const ensureDailyPost = async (
   if (existing) return { id: existing, day, created: false };
 
   const turn = await redis.incrBy(lockKey(day), 1);
-  await redis.expire(lockKey(day), LOCK_SECONDS);
   if (turn !== 1) return { id: null, day, created: false };
+  // Only the caller that took the lock times it, so a later call cannot
+  // shorten a lock that is being held for the day.
+  await redis.expire(lockKey(day), LOCK_SECONDS);
 
   let id: string;
   try {
